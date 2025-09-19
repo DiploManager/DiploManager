@@ -1,4 +1,4 @@
-// Sistema de gestión de hoteles -Lógica principal de aplicaciones
+// Sistema de gestión de hoteles: lógica de aplicación principal mejorada
 
 class HotelManagementSystem {
     constructor() {
@@ -6,6 +6,8 @@ class HotelManagementSystem {
         this.selectedHotel = null;
         this.calendar = null;
         this.reservationCalendar = null;
+        this.weeklyCalendar = null;
+        this.currentView = 'dashboard';
         this.init();
     }
 
@@ -15,11 +17,16 @@ class HotelManagementSystem {
         // Simular el tiempo de carga
         setTimeout(() => {
             this.hideLoading();
-            this.showLogin();
-        }, 2000);
+            this.initializeDatabase();
+        }, 5000); // 5 segundos
+    }
+
+    async initializeDatabase() {
+        await hotelDB.init();
+        await hotelDB.initializeDefaultData();
+        this.showLogin();
 
         this.setupEventListeners();
-        this.generateMockData();
     }
 
     showLoading() {
@@ -49,8 +56,13 @@ class HotelManagementSystem {
 
     showMainApp() {
         document.getElementById('mainApp').classList.remove('hidden');
+        this.loadUserInfo();
         this.initializeCalendars();
         this.loadRooms();
+        this.loadNotifications();
+        this.updateDashboardStats();
+        // Programar actualizaciones periódicas
+        setInterval(() => this.updateDashboardStats(), 30000); // Actualizar cada 30 segundos
     }
 
     setupEventListeners() {
@@ -58,6 +70,12 @@ class HotelManagementSystem {
         document.getElementById('loginForm').addEventListener('submit', (e) => {
             e.preventDefault();
             this.handleLogin();
+        });
+
+        // Formulario de inscripción
+        document.getElementById('registerForm')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleRegister();
         });
 
         // Navegación
@@ -68,55 +86,72 @@ class HotelManagementSystem {
                 this.switchView(view);
             });
         });
+
+        // Formulario de creación de hotel
+        document.getElementById('createHotelForm')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleCreateHotel();
+        });
+
+        // Formulario de reserva
+        document.getElementById('newReservationForm')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleCreateReservation();
+        });
+
+        // Gestión de habitaciones
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('room-card')) {
+                this.handleRoomClick(e.target);
+            }
+        });
+
+        // Gestión de notificaciones
+        document.getElementById('notificationBell')?.addEventListener('click', () => {
+            this.toggleNotificationPanel();
+        });
     }
 
-    handleLogin() {
+    async handleLogin() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
 
-        // Maqueta de autenticación
-        const users = {
-            'admin@hotel.com': { role: 'Admin', name: 'Administrador', password: 'admin123' },
-            'staff@hotel.com': { role: 'Staff', name: 'Personal', password: 'staff123' }
-        };
-
-        const user = users[email];
-        if (user && user.password === password) {
-            this.currentUser = { email, ...user };
-            document.getElementById('userName').textContent = user.name;
-            document.getElementById('userRole').textContent = user.role;
-            
+        const result = await authManager.login(email, password);
+        
+        if (result.success) {
+            this.currentUser = result.user;
             this.hideLogin();
             this.showHotelSelection();
         } else {
-            alert('Credenciales incorrectas');
+            this.showAlert(result.message, 'error');
         }
     }
 
-    loadHotels() {
-        const hotels = [
-            {
-                id: 1,
-                name: 'Hotel Plaza Central',
-                location: 'Centro Histórico',
-                rooms: 45,
-                image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?auto=compress&cs=tinysrgb&w=400'
-            },
-            {
-                id: 2,
-                name: 'Hotel Marina Bay',
-                location: 'Zona Rosa',
-                rooms: 32,
-                image: 'https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=400'
-            },
-            {
-                id: 3,
-                name: 'Hotel Mountain View',
-                location: 'Zona Norte',
-                rooms: 28,
-                image: 'https://images.pexels.com/photos/2506988/pexels-photo-2506988.jpeg?auto=compress&cs=tinysrgb&w=400'
-            }
-        ];
+    async handleRegister() {
+        const formData = new FormData(document.getElementById('registerForm'));
+        const userData = Object.fromEntries(formData);
+
+        const result = await authManager.register(userData);
+        
+        if (result.success) {
+            this.showAlert('Usuario creado exitosamente', 'success');
+            this.showLogin();
+        } else {
+            this.showAlert(result.message, 'error');
+        }
+    }
+
+    loadUserInfo() {
+        const user = authManager.getCurrentUser();
+        if (user) {
+            document.getElementById('userName').textContent = user.name;
+            document.getElementById('userRole').textContent = user.role;
+        }
+    }
+
+    async loadHotels() {
+        const user = authManager.getCurrentUser();
+        const hotels = await hotelManager.getHotelsByUser(user);
 
         const grid = document.getElementById('hotelGrid');
         grid.innerHTML = hotels.map(hotel => `
@@ -127,7 +162,7 @@ class HotelManagementSystem {
                     <h3 class="text-xl font-bold text-gray-900 mb-2">${hotel.name}</h3>
                     <p class="text-gray-600 mb-4">${hotel.location}</p>
                     <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-500">${hotel.rooms} habitaciones</span>
+                        <span class="text-sm text-gray-500">${hotel.totalRooms} habitaciones</span>
                         <button class="bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
                             Seleccionar
                         </button>
@@ -135,23 +170,48 @@ class HotelManagementSystem {
                 </div>
             </div>
         `).join('');
+
+        // Agregar botón Crear hotel para usuarios administrativos
+        if (user.role === 'admin') {
+            grid.innerHTML += `
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border-2 border-dashed border-gray-300" 
+                     onclick="hotelManager.showCreateHotelModal()">
+                    <div class="p-6 h-full flex flex-col items-center justify-center text-center">
+                        <i class="fas fa-plus text-4xl text-gray-400 mb-4"></i>
+                        <h3 class="text-xl font-bold text-gray-900 mb-2">Crear Nuevo Hotel</h3>
+                        <p class="text-gray-600">Agregar un nuevo hotel al sistema</p>
+                    </div>
+                </div>
+            `;
+        }
     }
 
-    selectHotel(hotelId) {
-        const hotels = {
-            1: 'Hotel Plaza Central',
-            2: 'Hotel Marina Bay', 
-            3: 'Hotel Mountain View'
-        };
+    async selectHotel(hotelId) {
+        const hotel = await hotelDB.get('hotels', hotelId);
+        if (!hotel) {
+            this.showAlert('Hotel no encontrado', 'error');
+            return;
+        }
 
-        this.selectedHotel = { id: hotelId, name: hotels[hotelId] };
-        document.getElementById('selectedHotelName').textContent = hotels[hotelId];
+        this.selectedHotel = hotel;
+        hotelManager.setCurrentHotel(hotel);
+        document.getElementById('selectedHotelName').textContent = hotel.name;
         
         this.hideHotelSelection();
         this.showMainApp();
     }
 
+    showBackToHotels() {
+        const user = authManager.getCurrentUser();
+        if (user.role === 'admin') {
+            document.getElementById('mainApp').classList.add('hidden');
+            this.showHotelSelection();
+        }
+    }
+
     switchView(viewName) {
+        this.currentView = viewName;
+        
         // Actualizar navegación
         document.querySelectorAll('.nav-item').forEach(item => {
             item.classList.remove('active');
@@ -164,6 +224,7 @@ class HotelManagementSystem {
             'reservations': { title: 'Reservas', subtitle: 'Gestión de reservas y calendario' },
             'rooms': { title: 'Habitaciones', subtitle: 'Estado y gestión de habitaciones' },
             'payments': { title: 'Pagos', subtitle: 'Gestión de pagos y facturación' },
+            'users': { title: 'Usuarios', subtitle: 'Gestión de usuarios del sistema' },
             'reports': { title: 'Informes', subtitle: 'Análisis y reportes del hotel' },
             'integrations': { title: 'Integraciones', subtitle: 'APIs y conexiones externas' },
             'settings': { title: 'Configuración', subtitle: 'Configuración del sistema' }
@@ -177,6 +238,19 @@ class HotelManagementSystem {
             view.classList.add('hidden');
         });
         document.getElementById(`${viewName}View`).classList.remove('hidden');
+
+        // Datos específicos de la vista de carga
+        switch(viewName) {
+            case 'reservations':
+                this.loadReservationsView();
+                break;
+            case 'rooms':
+                this.loadRoomsView();
+                break;
+            case 'reports':
+                this.loadReportsView();
+                break;
+        }
     }
 
     initializeCalendars() {
@@ -190,7 +264,7 @@ class HotelManagementSystem {
                     center: 'title',
                     right: 'dayGridMonth,timeGridWeek,timeGridDay'
                 },
-                events: this.generateMockReservations(),
+                events: this.loadCalendarEvents.bind(this),
                 eventClick: this.handleEventClick.bind(this),
                 height: 'auto',
                 locale: 'es'
@@ -208,7 +282,7 @@ class HotelManagementSystem {
                     center: 'title',
                     right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
                 },
-                events: this.generateMockReservations(),
+                events: this.loadCalendarEvents.bind(this),
                 eventClick: this.handleEventClick.bind(this),
                 editable: true,
                 droppable: true,
@@ -218,6 +292,47 @@ class HotelManagementSystem {
                 locale: 'es'
             });
         }
+
+        // Calendario de habitación semanal
+        const weeklyCalendarEl = document.getElementById('weeklyCalendar');
+        if (weeklyCalendarEl) {
+            this.weeklyCalendar = new FullCalendar.Calendar(weeklyCalendarEl, {
+                initialView: 'resourceTimeGridWeek',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'resourceTimeGridWeek,resourceTimeGridDay'
+                },
+                resources: this.loadRoomResources.bind(this),
+                events: this.loadCalendarEvents.bind(this),
+                locale: 'es'
+            });
+        }
+    }
+
+    async loadCalendarEvents() {
+        const currentHotel = hotelManager.getCurrentHotel();
+        if (!currentHotel) return [];
+
+        const reservations = await reservationManager.getReservationsByHotel(currentHotel.id);
+        const rooms = await roomManager.getRoomsByHotel(currentHotel.id);
+
+        return reservations.map(reservation => {
+            const room = rooms.find(r => r.id === reservation.roomId);
+            return reservationManager.formatReservationForCalendar(reservation, room);
+        });
+    }
+
+    async loadRoomResources() {
+        const currentHotel = hotelManager.getCurrentHotel();
+        if (!currentHotel) return [];
+
+        const rooms = await roomManager.getRoomsByHotel(currentHotel.id);
+        return rooms.map(room => ({
+            id: room.id,
+            title: `Hab. ${room.number}`,
+            extendedProps: { room }
+        }));
     }
 
     generateMockReservations() {
@@ -275,9 +390,10 @@ class HotelManagementSystem {
         return mockReservations;
     }
 
-    handleEventClick(info) {
+    async handleEventClick(info) {
         const event = info.event;
-        const props = event.extendedProps;
+        const reservation = event.extendedProps.reservation;
+        const room = event.extendedProps.room;
         
         const statusColors = {
             'paid': 'bg-green-100 text-green-800',
@@ -291,51 +407,74 @@ class HotelManagementSystem {
             'unpaid': 'Sin pagar'
         };
 
+        const reservationStatuses = {
+            'confirmed': 'Confirmada',
+            'checked-in': 'Check-in',
+            'checked-out': 'Check-out',
+            'cancelled': 'Cancelada'
+        };
+
         document.getElementById('reservationDetails').innerHTML = `
             <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Huésped</label>
-                        <p class="text-gray-900">${props.guest}</p>
+                        <p class="text-gray-900">${reservation.guestName}</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Habitación</label>
-                        <p class="text-gray-900">${props.room}</p>
+                        <p class="text-gray-900">${room?.number || 'N/A'}</p>
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Check-in</label>
-                        <p class="text-gray-900">${event.start.toLocaleDateString()}</p>
+                        <p class="text-gray-900">${new Date(reservation.checkIn).toLocaleDateString()}</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Check-out</label>
-                        <p class="text-gray-900">${event.end.toLocaleDateString()}</p>
+                        <p class="text-gray-900">${new Date(reservation.checkOut).toLocaleDateString()}</p>
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Estado de Pago</label>
-                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[props.status]}">
-                            ${statusTexts[props.status]}
+                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColors[reservation.paymentStatus]}">
+                            ${statusTexts[reservation.paymentStatus]}
                         </span>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Monto</label>
-                        <p class="text-gray-900">$${props.amount}</p>
+                        <p class="text-gray-900">$${reservation.totalAmount}</p>
                     </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Teléfono</label>
-                    <p class="text-gray-900">${props.phone}</p>
+                    <p class="text-gray-900">${reservation.guestPhone}</p>
                 </div>
-                ${props.status !== 'paid' ? `
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Estado de Reserva</label>
+                    <p class="text-gray-900">${reservationStatuses[reservation.reservationStatus]}</p>
+                </div>
+                <div class="mt-6 flex space-x-2">
+                    ${reservation.reservationStatus === 'confirmed' ? `
+                        <button onclick="hotelManager.checkIn(${reservation.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                            <i class="fas fa-sign-in-alt mr-2"></i>Check-in
+                        </button>
+                    ` : ''}
+                    ${reservation.reservationStatus === 'checked-in' && reservation.paymentStatus === 'paid' ? `
+                        <button onclick="hotelManager.checkOut(${reservation.id})" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            <i class="fas fa-sign-out-alt mr-2"></i>Check-out
+                        </button>
+                    ` : ''}
+                    ${reservation.paymentStatus !== 'paid' ? `
                     <div class="mt-6">
-                        <button class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                        <button onclick="hotelManager.processPayment(${reservation.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                             <i class="fas fa-credit-card mr-2"></i>Registrar Pago
                         </button>
                     </div>
                 ` : ''}
+                </div>
             </div>
         `;
 
@@ -343,85 +482,431 @@ class HotelManagementSystem {
         document.getElementById('reservationModal').classList.add('flex');
     }
 
+    async checkIn(reservationId) {
+        const result = await reservationManager.checkIn(reservationId);
+        if (result.success) {
+            this.showAlert('Check-in realizado exitosamente', 'success');
+            this.refreshCalendars();
+            this.closeReservationModal();
+        } else {
+            this.showAlert(result.message, 'error');
+        }
+    }
+
+    async checkOut(reservationId) {
+        const result = await reservationManager.checkOut(reservationId);
+        if (result.success) {
+            this.showAlert('Check-out realizado exitosamente', 'success');
+            this.refreshCalendars();
+            this.closeReservationModal();
+        } else {
+            this.showAlert(result.message, 'error');
+        }
+    }
+
+    async processPayment(reservationId) {
+        // Mostrar modal de pago
+        const amount = prompt('Ingrese el monto del pago:');
+        if (amount && !isNaN(amount)) {
+            const result = await reservationManager.processPayment(reservationId, {
+                amount: parseFloat(amount),
+                method: 'cash'
+            });
+            
+            if (result.success) {
+                this.showAlert('Pago procesado exitosamente', 'success');
+                this.refreshCalendars();
+                this.closeReservationModal();
+            } else {
+                this.showAlert(result.message, 'error');
+            }
+        }
+    }
+
+    closeReservationModal() {
+        document.getElementById('reservationModal').classList.add('hidden');
+        document.getElementById('reservationModal').classList.remove('flex');
+    }
+
+    refreshCalendars() {
+        if (this.calendar) this.calendar.refetchEvents();
+        if (this.reservationCalendar) this.reservationCalendar.refetchEvents();
+        if (this.weeklyCalendar) this.weeklyCalendar.refetchEvents();
+    }
+
     handleEventDrop(info) {
-        console.log('Reserva movida:', info.event.title, 'a', info.event.start);
-        // Aquí normalmente actualizaría la base de datos
+        const reservation = info.event.extendedProps.reservation;
+        const newStart = info.event.start.toISOString();
+        const newEnd = info.event.end.toISOString();
+        
+        // Actualizar fechas de reserva
+        reservationManager.updateReservation(reservation.id, {
+            checkIn: newStart,
+            checkOut: newEnd
+        });
     }
 
     handleEventResize(info) {
-        console.log('Reserva redimensionada:', info.event.title);
-        // Aquí normalmente actualizaría la base de datos
+        const reservation = info.event.extendedProps.reservation;
+        const newEnd = info.event.end.toISOString();
+        
+        // Extender la reserva
+        reservationManager.extendReservation(reservation.id, newEnd);
     }
 
-    loadRooms() {
-        const roomsGrid = document.getElementById('roomsGrid');
-        const roomStates = ['available', 'occupied', 'dirty', 'blocked'];
-        const stateColors = {
-            'available': 'bg-green-500',
-            'occupied': 'bg-gray-500',
-            'dirty': 'bg-red-500',
-            'blocked': 'bg-orange-500'
-        };
-        const stateTexts = {
-            'available': 'Disponible',
-            'occupied': 'Ocupada',
-            'dirty': 'Sucia',
-            'blocked': 'Bloqueada'
-        };
+    async loadRooms() {
+        const currentHotel = hotelManager.getCurrentHotel();
+        if (!currentHotel) return;
 
-        let rooms = [];
-        for (let i = 101; i <= 350; i++) {
-            const state = roomStates[Math.floor(Math.random() * roomStates.length)];
-            rooms.push({
-                number: i,
-                state: state,
-                guest: state === 'occupied' ? this.getRandomGuest() : null
-            });
-        }
+        const rooms = await roomManager.getRoomsByHotel(currentHotel.id);
+        const roomsGrid = document.getElementById('roomsGrid');
+        if (!roomsGrid) return;
 
         roomsGrid.innerHTML = rooms.map(room => `
-            <div class="bg-white rounded-lg border-2 border-gray-200 hover:border-blue-300 transition-colors cursor-pointer p-4 relative"
-                 onclick="hotelManager.showRoomDetails('${room.number}', '${room.state}', '${room.guest || ''}')">
-                <div class="absolute top-2 right-2 w-3 h-3 ${stateColors[room.state]} rounded-full"></div>
+            <div class="bg-white rounded-lg border-2 border-gray-200 hover:border-blue-300 transition-colors cursor-pointer p-4 relative room-card"
+                 data-room-id="${room.id}">
+                <div class="absolute top-2 right-2 w-3 h-3 ${roomManager.getRoomStateInfo(room.status).color} rounded-full"></div>
                 <div class="text-center">
                     <h3 class="font-bold text-gray-900 text-lg mb-1">${room.number}</h3>
-                    <p class="text-sm text-gray-600 mb-2">${stateTexts[room.state]}</p>
-                    ${room.guest ? `<p class="text-xs text-gray-500">${room.guest}</p>` : ''}
+                    <p class="text-sm text-gray-600 mb-2">${roomManager.getRoomStateInfo(room.status).text}</p>
+                    <p class="text-xs text-gray-500">${room.type}</p>
                 </div>
             </div>
         `).join('');
     }
 
-    getRandomGuest() {
-        const guests = [
-            'Juan Pérez', 'María García', 'Carlos Rodríguez', 'Ana Martínez',
-            'Luis López', 'Carmen Sánchez', 'Pedro González', 'Rosa Hernández'
-        ];
-        return guests[Math.floor(Math.random() * guests.length)];
+    async handleRoomClick(roomElement) {
+        const roomId = parseInt(roomElement.dataset.roomId);
+        const room = await hotelDB.get('rooms', roomId);
+        
+        if (!room) return;
+
+        // Modal de gestión de la sala del espectáculo
+        this.showRoomModal(room);
     }
 
-    showRoomDetails(roomNumber, state, guest) {
-        alert(`Habitación ${roomNumber}\nEstado: ${state}\n${guest ? `Huésped: ${guest}` : ''}`);
-        // Aquí mostraría un modal detallado para la gestión de la habitación
+    showRoomModal(room) {
+        const modal = document.getElementById('roomModal');
+        if (!modal) return;
+
+        document.getElementById('roomModalTitle').textContent = `Habitación ${room.number}`;
+        document.getElementById('roomModalContent').innerHTML = `
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Número</label>
+                        <p class="text-gray-900">${room.number}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Tipo</label>
+                        <p class="text-gray-900">${room.type}</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Estado Actual</label>
+                        <p class="text-gray-900">${roomManager.getRoomStateInfo(room.status).text}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Capacidad</label>
+                        <p class="text-gray-900">${room.capacity} personas</p>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Precio por noche</label>
+                    <p class="text-gray-900">$${room.price}</p>
+                </div>
+                <div class="mt-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Cambiar Estado</label>
+                    <div class="flex space-x-2">
+                        <button onclick="hotelManager.updateRoomStatus(${room.id}, 'available')" 
+                                class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">
+                            Disponible
+                        </button>
+                        <button onclick="hotelManager.updateRoomStatus(${room.id}, 'dirty')" 
+                                class="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700">
+                            Sucia
+                        </button>
+                        <button onclick="hotelManager.updateRoomStatus(${room.id}, 'maintenance')" 
+                                class="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700">
+                            Mantenimiento
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
     }
 
-    generateMockData() {
-        // Este método generará datos simulados para las pruebas
-        console.log('Mock data generated');
+    async updateRoomStatus(roomId, newStatus) {
+        const result = await roomManager.updateRoomStatus(roomId, newStatus);
+        if (result.success) {
+            this.showAlert('Estado de habitación actualizado', 'success');
+            this.loadRooms();
+            this.closeRoomModal();
+        } else {
+            this.showAlert(result.message, 'error');
+        }
+    }
+
+    closeRoomModal() {
+        const modal = document.getElementById('roomModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    }
+
+    async updateDashboardStats() {
+        const currentHotel = hotelManager.getCurrentHotel();
+        if (!currentHotel) return;
+
+        const stats = await hotelManager.getHotelStats(currentHotel.id);
+        if (!stats) return;
+
+        // Actualizar tarjetas KPI
+        const occupancyEl = document.querySelector('[data-stat="occupancy"]');
+        if (occupancyEl) occupancyEl.textContent = `${stats.occupancyRate}%`;
+
+        const revenueEl = document.querySelector('[data-stat="revenue"]');
+        if (revenueEl) revenueEl.textContent = `$${stats.monthlyRevenue.toLocaleString()}`;
+
+        const checkInsEl = document.querySelector('[data-stat="checkins"]');
+        if (checkInsEl) checkInsEl.textContent = stats.todayCheckIns;
+
+        const checkOutsEl = document.querySelector('[data-stat="checkouts"]');
+        if (checkOutsEl) checkOutsEl.textContent = stats.todayCheckOuts;
+
+        // Actualizar el desglose del estado de la sala
+        const roomStatusEl = document.getElementById('roomStatusBreakdown');
+        if (roomStatusEl) {
+            roomStatusEl.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                        <span class="text-gray-700">Disponibles</span>
+                    </div>
+                    <span class="font-medium">${stats.roomStatus.available}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-gray-500 rounded-full mr-3"></div>
+                        <span class="text-gray-700">Ocupadas</span>
+                    </div>
+                    <span class="font-medium">${stats.roomStatus.occupied}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-red-500 rounded-full mr-3"></div>
+                        <span class="text-gray-700">Sucias</span>
+                    </div>
+                    <span class="font-medium">${stats.roomStatus.dirty}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-orange-500 rounded-full mr-3"></div>
+                        <span class="text-gray-700">Mantenimiento</span>
+                    </div>
+                    <span class="font-medium">${stats.roomStatus.maintenance}</span>
+                </div>
+            `;
+        }
+    }
+
+    async loadNotifications() {
+        const user = authManager.getCurrentUser();
+        if (!user) return;
+
+        await notificationManager.getNotifications(user.id);
+        this.updateNotificationBadge();
+    }
+
+    updateNotificationBadge() {
+        const badge = document.querySelector('.notification-badge');
+        if (badge) {
+            badge.textContent = notificationManager.unreadCount;
+            badge.style.display = notificationManager.unreadCount > 0 ? 'flex' : 'none';
+        }
+    }
+
+    toggleNotificationPanel() {
+        const panel = document.getElementById('notificationPanel');
+        if (panel) {
+            panel.classList.toggle('hidden');
+        }
+    }
+
+    async loadReservationsView() {
+        if (this.reservationCalendar && !this.reservationCalendar.isRendered) {
+            this.reservationCalendar.render();
+        }
+    }
+
+    async loadRoomsView() {
+        await this.loadRooms();
+        
+        if (this.weeklyCalendar && !this.weeklyCalendar.isRendered) {
+            this.weeklyCalendar.render();
+        }
+    }
+
+    async loadReportsView() {
+        const currentHotel = hotelManager.getCurrentHotel();
+        if (!currentHotel) return;
+
+        // Cargar informes predeterminados
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 1);
+
+        const occupancyReport = await reportManager.generateOccupancyReport(
+            currentHotel.id, 
+            startDate.toISOString(), 
+            endDate.toISOString()
+        );
+
+        const revenueReport = await reportManager.generateRevenueReport(
+            currentHotel.id, 
+            startDate.toISOString(), 
+            endDate.toISOString()
+        );
+
+        this.displayReports(occupancyReport, revenueReport);
+    }
+
+    displayReports(occupancyReport, revenueReport) {
+        const reportsContainer = document.getElementById('reportsContainer');
+        if (!reportsContainer) return;
+
+        reportsContainer.innerHTML = `
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Reporte de Ocupación</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span>Tasa de Ocupación:</span>
+                            <span class="font-medium">${occupancyReport?.occupancyRate || 0}%</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Total Reservas:</span>
+                            <span class="font-medium">${occupancyReport?.totalReservations || 0}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Noches Ocupadas:</span>
+                            <span class="font-medium">${occupancyReport?.occupiedRoomNights || 0}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Reporte de Ingresos</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span>Ingresos Totales:</span>
+                            <span class="font-medium">$${revenueReport?.totalRevenue?.toLocaleString() || 0}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Ingresos Pendientes:</span>
+                            <span class="font-medium">$${revenueReport?.pendingRevenue?.toLocaleString() || 0}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Valor Promedio:</span>
+                            <span class="font-medium">$${Math.round(revenueReport?.averageReservationValue || 0).toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    showAlert(message, type = 'info') {
+        const alertContainer = document.getElementById('alertContainer') || this.createAlertContainer();
+        
+        const alertColors = {
+            'success': 'bg-green-100 border-green-400 text-green-700',
+            'error': 'bg-red-100 border-red-400 text-red-700',
+            'warning': 'bg-yellow-100 border-yellow-400 text-yellow-700',
+            'info': 'bg-blue-100 border-blue-400 text-blue-700'
+        };
+
+        const alert = document.createElement('div');
+        alert.className = `border px-4 py-3 rounded mb-4 ${alertColors[type]} alert-message`;
+        alert.innerHTML = `
+            <span class="block sm:inline">${message}</span>
+            <button class="float-right ml-4" onclick="this.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+
+        alertContainer.appendChild(alert);
+
+        // Auto eliminar después de 5 segundos
+        setTimeout(() => {
+            if (alert.parentElement) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+
+    createAlertContainer() {
+        const container = document.createElement('div');
+        container.id = 'alertContainer';
+        container.className = 'fixed top-4 right-4 z-50 max-w-sm';
+        document.body.appendChild(container);
+        return container;
+    }
+
+    logout() {
+        authManager.logout();
     }
 }
 
 // Funciones globales
 function closeReservationModal() {
-    document.getElementById('reservationModal').classList.add('hidden');
-    document.getElementById('reservationModal').classList.remove('flex');
+    hotelManager.closeReservationModal();
 }
 
 function logout() {
     if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-        location.reload();
+        hotelManager.logout();
     }
 }
+
+// Extender el sistema de gestión hotelera con métodos adicionales
+HotelManagementSystem.prototype.selectHotel = function(hotelId) {
+    this.selectHotel(hotelId);
+};
+
+HotelManagementSystem.prototype.showCreateHotelModal = function() {
+    const modal = document.getElementById('createHotelModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+};
+
+HotelManagementSystem.prototype.handleCreateHotel = async function() {
+    const formData = new FormData(document.getElementById('createHotelForm'));
+    const hotelData = Object.fromEntries(formData);
+
+    const result = await hotelManager.createHotel(hotelData);
+    if (result.success) {
+        this.showAlert('Hotel creado exitosamente', 'success');
+        this.loadHotels();
+        this.closeCreateHotelModal();
+    } else {
+        this.showAlert(result.message, 'error');
+    }
+};
+
+HotelManagementSystem.prototype.closeCreateHotelModal = function() {
+    const modal = document.getElementById('createHotelModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
 
 // Estilos CSS para navegación y componentes
 const additionalStyles = `
@@ -504,6 +989,37 @@ const additionalStyles = `
     #roomsGrid {
         grid-template-columns: repeat(2, 1fr) !important;
     }
+}
+
+.alert-message {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.notification-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background-color: #dc2626;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
 }
 </style>
 `;

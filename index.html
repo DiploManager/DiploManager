@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DiploManager - Sistema de Gestión</title>
+    <title>DiploManager - Sistema de Gestión Hotelera Completo</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script>
@@ -75,6 +75,47 @@
                     <p><strong>Staff:</strong> staff@hotel.com / staff123</p>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Registro modal -->
+    <div id="registrationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900">Crear Usuario</h1>
+                <p class="text-gray-600">Registro de nuevo usuario</p>
+            </div>
+            
+            <form id="registerForm" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Nombre Completo</label>
+                    <input type="text" name="name" required 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-colors">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" name="email" required 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-colors">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
+                    <input type="password" name="password" required 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-colors">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Rol</label>
+                    <select name="role" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-colors">
+                        <option value="staff">Staff</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                    Crear Usuario
+                </button>
+                <button type="button" onclick="document.getElementById('registrationModal').classList.add('hidden')" class="w-full border border-gray-300 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors">
+                    Cancelar
+                </button>
+            </form>
         </div>
     </div>
 
@@ -180,11 +221,23 @@
                         <button class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                             <i class="fas fa-plus mr-2"></i>Nueva Reserva
                         </button>
+                        <button onclick="hotelManager.showBackToHotels()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
+                            <i class="fas fa-arrow-left mr-2"></i>Cambiar Hotel
+                        </button>
                         <div class="relative">
-                            <button class="p-2 text-gray-600 hover:text-gray-900">
+                            <button id="notificationBell" class="p-2 text-gray-600 hover:text-gray-900 relative">
                                 <i class="fas fa-bell"></i>
-                                <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">3</span>
+                                <span class="notification-badge absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 items-center justify-center hidden">0</span>
                             </button>
+                            <!-- Panel de notificación -->
+                            <div id="notificationPanel" class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border hidden z-50">
+                                <div class="p-4 border-b">
+                                    <h3 class="font-semibold text-gray-900">Notificaciones</h3>
+                                </div>
+                                <div id="notificationList" class="max-h-64 overflow-y-auto">
+                                    <!-- Las notificaciones se cargarán aquí -->
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -203,7 +256,7 @@
                                 </div>
                                 <div class="ml-4">
                                     <h3 class="text-sm font-medium text-gray-500">Ocupación</h3>
-                                    <p class="text-2xl font-bold text-gray-900">78%</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-stat="occupancy">0%</p>
                                 </div>
                             </div>
                         </div>
@@ -215,7 +268,7 @@
                                 </div>
                                 <div class="ml-4">
                                     <h3 class="text-sm font-medium text-gray-500">Ingresos Hoy</h3>
-                                    <p class="text-2xl font-bold text-gray-900">$2,450</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-stat="revenue">$0</p>
                                 </div>
                             </div>
                         </div>
@@ -227,7 +280,7 @@
                                 </div>
                                 <div class="ml-4">
                                     <h3 class="text-sm font-medium text-gray-500">Check-ins</h3>
-                                    <p class="text-2xl font-bold text-gray-900">12</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-stat="checkins">0</p>
                                 </div>
                             </div>
                         </div>
@@ -239,7 +292,7 @@
                                 </div>
                                 <div class="ml-4">
                                     <h3 class="text-sm font-medium text-gray-500">Check-outs</h3>
-                                    <p class="text-2xl font-bold text-gray-900">8</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-stat="checkouts">0</p>
                                 </div>
                             </div>
                         </div>
@@ -256,7 +309,7 @@
                             <!-- Estado de la habitación -->
                             <div class="bg-white rounded-lg shadow p-6">
                                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Estado de Habitaciones</h3>
-                                <div class="space-y-3">
+                                <div id="roomStatusBreakdown" class="space-y-3">
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center">
                                             <div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
@@ -312,12 +365,16 @@
                 
                 <!-- Vista de reservas -->
                 <div id="reservationsView" class="view-content p-6 hidden">
+                    <!-- Nuevo formulario de reserva -->
                     <div class="bg-white rounded-lg shadow">
                         <div class="p-6 border-b">
                             <div class="flex items-center justify-between">
                                 <h3 class="text-lg font-semibold text-gray-900">Calendario de Reservas</h3>
                                 <div class="flex space-x-2">
                                     <button class="bg-primary text-white px-4 py-2 rounded-lg text-sm">
+                                        <i class="fas fa-plus mr-1"></i>Nueva Reserva
+                                    </button>
+                                    <button onclick="document.getElementById('newReservationModal').classList.remove('hidden')" class="bg-primary text-white px-4 py-2 rounded-lg text-sm">
                                         <i class="fas fa-plus mr-1"></i>Nueva Reserva
                                     </button>
                                     <button class="border border-gray-300 px-4 py-2 rounded-lg text-sm">
@@ -334,8 +391,9 @@
                     </div>
                 </div>
                 
-                <!-- Vista de espacio -->
+                <!-- Vista de habitaciones -->
                 <div id="roomsView" class="view-content p-6 hidden">
+                    <!-- Encabezado de gestión de la habitación -->
                     <div class="mb-6">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-gray-900">Gestión de Habitaciones</h3>
@@ -357,6 +415,17 @@
                         </div>
                     </div>
                     
+                    <!-- Vista calendario semanal -->
+                    <div class="bg-white rounded-lg shadow mb-6">
+                        <div class="p-6 border-b">
+                            <h3 class="text-lg font-semibold text-gray-900">Vista Semanal de Habitaciones</h3>
+                        </div>
+                        <div class="p-6">
+                            <div id="weeklyCalendar"></div>
+                        </div>
+                    </div>
+
+                    <!-- Cuadrícula -->
                     <div id="roomsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                         <!-- Las tarjetas de habitación se generarán aquí -->
                     </div>
@@ -369,11 +438,22 @@
                         <p class="text-gray-600">Módulo de pagos en desarrollo...</p>
                     </div>
                 </div>
+
+                <div id="usersView" class="view-content p-6 hidden">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Gestión de Usuarios</h3>
+                        <button onclick="document.getElementById('registrationModal').classList.remove('hidden')" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            <i class="fas fa-user-plus mr-2"></i>Crear Usuario
+                        </button>
+                    </div>
+                </div>
                 
                 <div id="reportsView" class="view-content p-6 hidden">
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-lg font-semibold text-gray-900 mb-4">Informes y Análisis</h3>
-                        <p class="text-gray-600">Módulo de informes en desarrollo...</p>
+                        <div id="reportsContainer">
+                            <!-- Los informes se cargarán aquí -->
+                        </div>
                     </div>
                 </div>
                 
@@ -398,7 +478,34 @@
                 <div id="settingsView" class="view-content p-6 hidden">
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-lg font-semibold text-gray-900 mb-4">Configuración</h3>
-                        <p class="text-gray-600">Módulo de configuración en desarrollo...</p>
+                        <div class="space-y-6">
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-2">Configuración de Check-in/Check-out</h4>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Hora de Check-in</label>
+                                        <input type="time" value="15:00" class="border border-gray-300 rounded-lg px-3 py-2">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Hora de Check-out</label>
+                                        <input type="time" value="12:00" class="border border-gray-300 rounded-lg px-3 py-2">
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-2">Notificaciones</h4>
+                                <div class="space-y-2">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" checked class="mr-2">
+                                        <span class="text-sm text-gray-700">Recordatorios de check-in</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" checked class="mr-2">
+                                        <span class="text-sm text-gray-700">Alertas de limpieza</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -428,9 +535,171 @@
         </div>
     </div>
 
+    <!-- Nuevo modal de reserva -->
+    <div id="newReservationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg max-w-2xl w-full m-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Nueva Reserva</h3>
+                    <button onclick="document.getElementById('newReservationModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6">
+                <form id="newReservationForm" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Huésped</label>
+                            <input type="text" name="guestName" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" name="guestEmail" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                            <input type="tel" name="guestPhone" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Número de Personas</label>
+                            <input type="number" name="numberOfGuests" min="1" max="6" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Check-in</label>
+                            <input type="datetime-local" name="checkIn" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Check-out</label>
+                            <input type="datetime-local" name="checkOut" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Habitación</label>
+                            <select name="roomType" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                <option value="Standard">Standard</option>
+                                <option value="Superior">Superior</option>
+                                <option value="Deluxe">Deluxe</option>
+                                <option value="Suite">Suite</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Habitación</label>
+                            <select name="roomId" id="availableRooms" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                <option value="">Seleccionar habitación</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Preferencias Adicionales</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" name="preferences" value="Desayuno incluido" class="mr-2">
+                                <span class="text-sm">Desayuno incluido</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="preferences" value="Transporte aeropuerto" class="mr-2">
+                                <span class="text-sm">Transporte desde/hacia aeropuerto</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="preferences" value="Cama extra" class="mr-2">
+                                <span class="text-sm">Cama extra</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" onclick="document.getElementById('newReservationModal').classList.add('hidden')" class="border border-gray-300 px-4 py-2 rounded-lg">Cancelar</button>
+                        <button type="submit" class="bg-primary text-white px-4 py-2 rounded-lg">Crear Reserva</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Habitación modal -->
+    <div id="roomModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg max-w-lg w-full m-4">
+            <div class="p-6 border-b">
+                <div class="flex items-center justify-between">
+                    <h3 id="roomModalTitle" class="text-lg font-semibold text-gray-900">Gestión de Habitación</h3>
+                    <button onclick="hotelManager.closeRoomModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6">
+                <div id="roomModalContent">
+                    <!-- Los detalles de la habitación se cargarán aquí -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Crear modal de hotel -->
+    <div id="createHotelModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg max-w-2xl w-full m-4">
+            <div class="p-6 border-b">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Crear Nuevo Hotel</h3>
+                    <button onclick="hotelManager.closeCreateHotelModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6">
+                <form id="createHotelForm" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Hotel</label>
+                            <input type="text" name="name" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+                            <input type="text" name="location" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                        <input type="text" name="address" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                            <input type="tel" name="phone" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" name="email" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">URL de Imagen</label>
+                        <input type="url" name="image" placeholder="https://ejemplo.com/imagen.jpg" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" onclick="hotelManager.closeCreateHotelModal()" class="border border-gray-300 px-4 py-2 rounded-lg">Cancelar</button>
+                        <button type="submit" class="bg-primary text-white px-4 py-2 rounded-lg">Crear Hotel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Guiones -->
     <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <script src="js/database.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/hotels.js"></script>
+    <script src="js/rooms.js"></script>
+    <script src="js/reservations.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/reports.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
