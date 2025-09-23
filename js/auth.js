@@ -3,44 +3,62 @@ class AuthManager {
     constructor() {
         this.currentUser = null;
         this.sessionKey = 'hotelManagementSession';
+        this.db = null;
+    }
+    
+    async init() {
+        this.db = window.hotelDB;
     }
 
     async login(email, password) {
+        console.log('Intentando login con:', email);
+        
         try {
-            const users = await hotelDB.getByIndex('users', 'email', email);
-            const user = users.find(u => u.password === password && u.active);
-
-            if (user) {
-                this.currentUser = user;
-                sessionStorage.setItem(this.sessionKey, JSON.stringify(user));
-                return { success: true, user };
-            } else {
-                return { success: false, message: 'Credenciales incorrectas' };
+            await this.init();
+            const user = await this.db.getUserByEmail(email);
+            
+            console.log('Usuario encontrado en DB:', user);
+            
+            if (!user) {
+                console.log('Usuario no encontrado');
+                return { success: false, message: 'Usuario no encontrado' };
             }
+
+            console.log('Verificando contraseña:', password, 'vs', user.password);
+            if (user.password !== password) {
+                console.log('Contraseña incorrecta');
+                return { success: false, message: 'Contraseña incorrecta' };
+            }
+
+            this.currentUser = user;
+            localStorage.setItem('currentUser', JSON.stringify(user));
+            console.log('Login exitoso:', user);
+            return { success: true, user: user };
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('Error en login:', error);
             return { success: false, message: 'Error en el sistema' };
         }
     }
 
     async register(userData) {
         try {
-            // Compruebe si el correo electrónico ya existe
-            const existingUsers = await hotelDB.getByIndex('users', 'email', userData.email);
-            if (existingUsers.length > 0) {
-                return { success: false, message: 'El email ya está registrado' };
+            await this.init();
+            // Verify if the user already exists
+            const existingUser = await this.db.getUserByEmail(userData.email);
+            if (existingUser) {
+                return { success: false, message: 'El usuario ya existe' };
             }
 
-            const newUser = {
-                ...userData,
-                createdAt: new Date().toISOString(),
-                active: true
-            };
-
-            await hotelDB.add('users', newUser);
-            return { success: true, message: 'Usuario creado exitosamente' };
+            // Create new user
+            const userId = await this.db.createUser(userData);
+            const newUser = { ...userData, id: userId };
+            
+            this.currentUser = newUser;
+            localStorage.setItem('currentUser', JSON.stringify(newUser));
+            
+            return { success: true, user: newUser };
         } catch (error) {
-            console.error('Registration error:', error);
+            console.error('Error en registro:', error);
             return { success: false, message: 'Error al crear usuario' };
         }
     }
@@ -48,14 +66,16 @@ class AuthManager {
     logout() {
         this.currentUser = null;
         sessionStorage.removeItem(this.sessionKey);
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('selectedHotel');
         location.reload();
     }
 
     getCurrentUser() {
         if (!this.currentUser) {
-            const sessionData = sessionStorage.getItem(this.sessionKey);
-            if (sessionData) {
-                this.currentUser = JSON.parse(sessionData);
+            const stored = localStorage.getItem('currentUser');
+            if (stored) {
+                this.currentUser = JSON.parse(stored);
             }
         }
         return this.currentUser;
@@ -68,6 +88,11 @@ class AuthManager {
     hasRole(role) {
         const user = this.getCurrentUser();
         return user && user.role === role;
+    }
+
+    isAdmin() {
+        const user = this.getCurrentUser();
+        return user && user.role === 'admin';
     }
 
     async resetPassword(email) {

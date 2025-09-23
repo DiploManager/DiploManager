@@ -13,7 +13,7 @@ class HotelManager {
                 totalRooms: 0
             };
 
-            const result = await hotelDB.add('hotels', hotel);
+            const result = await window.hotelDB.add('hotels', hotel);
             return { success: true, hotel: { ...hotel, id: result } };
         } catch (error) {
             console.error('Error creating hotel:', error);
@@ -23,13 +23,13 @@ class HotelManager {
 
     async updateHotel(hotelId, updates) {
         try {
-            const hotel = await hotelDB.get('hotels', hotelId);
+            const hotel = await window.hotelDB.get('hotels', hotelId);
             if (!hotel) {
                 return { success: false, message: 'Hotel no encontrado' };
             }
 
             const updatedHotel = { ...hotel, ...updates };
-            await hotelDB.update('hotels', updatedHotel);
+            await window.hotelDB.update('hotels', updatedHotel);
 
             return { success: true, hotel: updatedHotel };
         } catch (error) {
@@ -41,9 +41,9 @@ class HotelManager {
     async getHotelsByUser(user) {
         try {
             if (user.role === 'admin') {
-                return await hotelDB.getAll('hotels');
+                return await window.hotelDB.getAll('hotels');
             } else if (user.role === 'staff' && user.hotelId) {
-                const hotel = await hotelDB.get('hotels', user.hotelId);
+                const hotel = await window.hotelDB.get('hotels', user.hotelId);
                 return hotel ? [hotel] : [];
             }
             return [];
@@ -53,10 +53,18 @@ class HotelManager {
         }
     }
 
+    async selectHotel(hotelId) {
+        window.hotelManager.selectHotel(hotelId);
+    }
+
+    showCreateHotelModal() {
+        window.hotelManager.showCreateHotelModal();
+    }
+
     async getHotelStats(hotelId) {
         try {
-            const rooms = await roomManager.getRoomsByHotel(hotelId);
-            const reservations = await reservationManager.getReservationsByHotel(hotelId);
+            const rooms = await window.roomManager.getRoomsByHotel(hotelId);
+            const reservations = await window.reservationManager.getReservationsByHotel(hotelId);
             
             const today = new Date();
             const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
