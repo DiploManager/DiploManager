@@ -24,17 +24,8 @@
     </script>
 </head>
 <body class="bg-gray-50">
-    <!-- Pantalla de carga -->
-    <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
-        <div class="text-center">
-            <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <h2 class="text-2xl font-bold text-gray-800">DiploManager</h2>
-            <p class="text-gray-600">Cargando sistema...</p>
-        </div>
-    </div>
-
     <!-- Pantalla de inicio de sesión -->
-    <div id="loginScreen" class="min-h-screen bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center p-4 hidden">
+    <div id="loginScreen" class="min-h-screen bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
             <div class="text-center mb-8">
                 <div class="mx-auto w-20 h-20 bg-primary rounded-full flex items-center justify-center mb-4">
@@ -47,13 +38,13 @@
             <form id="loginForm" class="space-y-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                    <input type="email" id="email" required 
+                    <input type="email" id="email" value="admin@hotel.com" required 
                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-colors">
                 </div>
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
-                    <input type="password" id="password" required 
+                    <input type="password" id="password" value="admin123" required 
                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-colors">
                 </div>
                 
@@ -71,8 +62,8 @@
             <div class="mt-8 p-4 bg-gray-50 rounded-lg">
                 <h3 class="font-medium text-gray-800 mb-2">Credenciales de Prueba:</h3>
                 <div class="text-sm text-gray-600">
-                    <p><strong>Admin:</strong> admin@hotel.com / admin123</p>
-                    <p><strong>Staff:</strong> staff@hotel.com / staff123</p>
+                    <p><strong>Administrador:</strong> admin@hotel.com / admin123</p>
+                    <p><strong>Personal:</strong> staff@hotel.com / staff123</p>
                 </div>
             </div>
         </div>
@@ -137,11 +128,11 @@
     <div id="mainApp" class="flex h-screen bg-gray-100 hidden">
         <!-- Barra lateral -->
         <div id="sidebar" class="w-64 bg-white shadow-lg flex flex-col">
-            <!-- Logo -->
+                                <input type="email" id="email" value="admin@hotel.com" required>
             <div class="p-6 border-b">
                 <div class="flex items-center">
                     <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center mr-3">
-                        <i class="fas fa-hotel text-white"></i>
+                                <input type="password" id="password" value="admin123" required>
                     </div>
                     <div>
                         <h2 class="font-bold text-gray-900">DiploManager</h2>
@@ -218,10 +209,10 @@
                         <p class="text-gray-600 text-sm" id="pageSubtitle">Resumen general del hotel</p>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <button class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        <button id="newReservationBtn" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                             <i class="fas fa-plus mr-2"></i>Nueva Reserva
                         </button>
-                        <button onclick="hotelManager.showBackToHotels()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
+                        <button id="backToHotelsBtn" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
                             <i class="fas fa-arrow-left mr-2"></i>Cambiar Hotel
                         </button>
                         <div class="relative">
@@ -371,9 +362,6 @@
                             <div class="flex items-center justify-between">
                                 <h3 class="text-lg font-semibold text-gray-900">Calendario de Reservas</h3>
                                 <div class="flex space-x-2">
-                                    <button class="bg-primary text-white px-4 py-2 rounded-lg text-sm">
-                                        <i class="fas fa-plus mr-1"></i>Nueva Reserva
-                                    </button>
                                     <button onclick="document.getElementById('newReservationModal').classList.remove('hidden')" class="bg-primary text-white px-4 py-2 rounded-lg text-sm">
                                         <i class="fas fa-plus mr-1"></i>Nueva Reserva
                                     </button>
@@ -440,11 +428,8 @@
                 </div>
 
                 <div id="usersView" class="view-content p-6 hidden">
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Gestión de Usuarios</h3>
-                        <button onclick="document.getElementById('registrationModal').classList.remove('hidden')" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-                            <i class="fas fa-user-plus mr-2"></i>Crear Usuario
-                        </button>
+                    <div id="usersContainer">
+                        <!-- Los usuarios se cargarán aquí -->
                     </div>
                 </div>
                 
@@ -627,7 +612,7 @@
             <div class="p-6 border-b">
                 <div class="flex items-center justify-between">
                     <h3 id="roomModalTitle" class="text-lg font-semibold text-gray-900">Gestión de Habitación</h3>
-                    <button onclick="hotelManager.closeRoomModal()" class="text-gray-400 hover:text-gray-600">
+                    <button onclick="window.hotelApp.closeRoomModal()" class="text-gray-400 hover:text-gray-600">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -646,7 +631,7 @@
             <div class="p-6 border-b">
                 <div class="flex items-center justify-between">
                     <h3 class="text-lg font-semibold text-gray-900">Crear Nuevo Hotel</h3>
-                    <button onclick="hotelManager.closeCreateHotelModal()" class="text-gray-400 hover:text-gray-600">
+                    <button onclick="window.hotelApp.closeCreateHotelModal()" class="text-gray-400 hover:text-gray-600">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -677,12 +662,30 @@
                             <input type="email" name="email" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
                         </div>
                     </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Número Total de Habitaciones</label>
+                            <input type="number" name="totalRooms" min="1" max="200" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">URL de Imagen</label>
+                            <input type="url" name="image" placeholder="https://ejemplo.com/imagen.jpg" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" onclick="window.hotelApp.closeCreateHotelModal()" class="border border-gray-300 px-4 py-2 rounded-lg">Cancelar</button>
+                        <button type="submit" class="bg-primary text-white px-4 py-2 rounded-lg">Crear Hotel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">URL de Imagen</label>
                         <input type="url" name="image" placeholder="https://ejemplo.com/imagen.jpg" class="w-full border border-gray-300 rounded-lg px-3 py-2">
                     </div>
                     <div class="flex justify-end space-x-3 mt-6">
-                        <button type="button" onclick="hotelManager.closeCreateHotelModal()" class="border border-gray-300 px-4 py-2 rounded-lg">Cancelar</button>
+                        <button type="button" onclick="window.hotelManager.closeCreateHotelModal()" class="border border-gray-300 px-4 py-2 rounded-lg">Cancelar</button>
                         <button type="submit" class="bg-primary text-white px-4 py-2 rounded-lg">Crear Hotel</button>
                     </div>
                 </form>
@@ -690,7 +693,51 @@
         </div>
     </div>
 
-    <!-- Guiones -->
+    <!-- Editar modal de hotel -->
+    <div id="editHotelModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg max-w-2xl w-full m-4">
+            <div class="p-6 border-b">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Editar Hotel</h3>
+                    <button onclick="window.hotelApp.closeEditHotelModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6">
+                <form id="editHotelForm" class="space-y-4">
+                    <input type="hidden" id="editHotelId" name="id">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Hotel</label>
+                            <input type="text" id="editHotelName" name="name" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+                            <input type="text" id="editHotelLocation" name="location" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                        <input type="text" id="editHotelAddress" name="address" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                            <input type="url" id="editHotelImage" name="image" placeholder="https://ejemplo.com/imagen.jpg" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <button type="button" onclick="window.hotelApp.closeEditHotelModal()" class="border border-gray-300 px-4 py-2 rounded-lg">Cancelar</button>
+                        <button type="button" onclick="window.hotelApp.handleDeleteHotel(document.getElementById('editHotelId').value)" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Eliminar</button>
+                        <button type="submit" class="bg-primary text-white px-4 py-2 rounded-lg">Actualizar Hotel</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Número Total de Habitaciones</label>
+                            <input type="number" id="editHotelRooms" name="totalRooms" min="1" max="200" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        </div>
+    <!-- Scripts -->
     <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
     <script src="js/database.js"></script>
@@ -702,4 +749,13 @@
     <script src="js/reports.js"></script>
     <script src="js/app.js"></script>
 </body>
+<script>
+// Agregar manejador de formulario de edición de hotel
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('editHotelForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        window.hotelApp.handleEditHotel();
+    });
+});
+</script>
 </html>

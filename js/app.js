@@ -1,4 +1,4 @@
-// Sistema de gestión de hoteles: lógica de aplicación principal mejorada
+// Sistema de gestión de hoteles -Lógica principal de aplicaciones
 
 class HotelManagementSystem {
     constructor() {
@@ -8,37 +8,54 @@ class HotelManagementSystem {
         this.reservationCalendar = null;
         this.weeklyCalendar = null;
         this.currentView = 'dashboard';
-        this.init();
-    }
-
-    init() {
-        this.showLoading();
-        
-        // Simular el tiempo de carga
-        setTimeout(() => {
-            this.hideLoading();
-            this.initializeDatabase();
-        }, 5000); // 5 segundos
+        this.isInitialized = false;
     }
 
     async initializeDatabase() {
-        await hotelDB.init();
-        await hotelDB.initializeDefaultData();
-        this.showLogin();
+        if (this.isInitialized) return;
+        
+        console.log('Inicializando HotelManager...');
+        await window.hotelDB.init();
+        await window.hotelDB.initializeDefaultData();
+        console.log('Base de datos inicializada');
+
+        // Inicializar managers
+        window.authManager = new AuthManager();
+        await window.authManager.init();
+        console.log('AuthManager inicializado');
+        
+        window.reservationManager = new ReservationManager();
+        window.roomManager = new RoomManager();
+        window.hotelManager = new HotelManager();
+        window.notificationManager = new NotificationManager();
+        window.reportManager = new ReportManager();
+
+        this.isInitialized = true;
+        console.log('Todos los managers inicializados');
+
+        // Verify if there is a logo user
+        const currentUser = window.authManager.getCurrentUser();
+        if (currentUser) {
+            console.log('Usuario ya logueado:', currentUser);
+            const selectedHotel = localStorage.getItem('currentHotel');
+            if (selectedHotel) {
+                this.selectedHotel = JSON.parse(selectedHotel);
+                this.showMainApp();
+            } else {
+                this.showHotelSelection();
+            }
+        } else {
+            console.log('No hay usuario logueado, mostrando login');
+            this.showLogin();
+        }
 
         this.setupEventListeners();
     }
 
-    showLoading() {
-        document.getElementById('loading').classList.remove('hidden');
-    }
-
-    hideLoading() {
-        document.getElementById('loading').classList.add('hidden');
-    }
-
     showLogin() {
         document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('hotelSelection').classList.add('hidden');
+        document.getElementById('mainApp').classList.add('hidden');
     }
 
     hideLogin() {
@@ -47,6 +64,8 @@ class HotelManagementSystem {
 
     showHotelSelection() {
         document.getElementById('hotelSelection').classList.remove('hidden');
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('mainApp').classList.add('hidden');
         this.loadHotels();
     }
 
@@ -56,6 +75,8 @@ class HotelManagementSystem {
 
     showMainApp() {
         document.getElementById('mainApp').classList.remove('hidden');
+        document.getElementById('hotelSelection').classList.add('hidden');
+        document.getElementById('loginScreen').classList.add('hidden');
         this.loadUserInfo();
         this.initializeCalendars();
         this.loadRooms();
@@ -110,19 +131,35 @@ class HotelManagementSystem {
         document.getElementById('notificationBell')?.addEventListener('click', () => {
             this.toggleNotificationPanel();
         });
+
+        // Nuevo botón de reserva en el encabezado
+        document.getElementById('newReservationBtn')?.addEventListener('click', () => {
+            this.showNewReservationModal();
+        });
+
+        // Botón de regreso a los hoteles
+        document.getElementById('backToHotelsBtn')?.addEventListener('click', () => {
+            this.showBackToHotels();
+        });
     }
 
     async handleLogin() {
+        console.log('Manejando login...');
+        
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
 
-        const result = await authManager.login(email, password);
+        console.log('Datos de login:', { email, password });
+
+        const result = await window.authManager.login(email, password);
         
         if (result.success) {
+            console.log('Login exitoso, usuario:', result.user);
             this.currentUser = result.user;
             this.hideLogin();
             this.showHotelSelection();
         } else {
+            console.error('Error en login:', result.message);
             this.showAlert(result.message, 'error');
         }
     }
@@ -131,18 +168,18 @@ class HotelManagementSystem {
         const formData = new FormData(document.getElementById('registerForm'));
         const userData = Object.fromEntries(formData);
 
-        const result = await authManager.register(userData);
+        const result = await window.authManager.register(userData);
         
         if (result.success) {
             this.showAlert('Usuario creado exitosamente', 'success');
-            this.showLogin();
+            document.getElementById('registrationModal').classList.add('hidden');
         } else {
             this.showAlert(result.message, 'error');
         }
     }
 
     loadUserInfo() {
-        const user = authManager.getCurrentUser();
+        const user = window.authManager.getCurrentUser();
         if (user) {
             document.getElementById('userName').textContent = user.name;
             document.getElementById('userRole').textContent = user.role;
@@ -150,22 +187,31 @@ class HotelManagementSystem {
     }
 
     async loadHotels() {
-        const user = authManager.getCurrentUser();
-        const hotels = await hotelManager.getHotelsByUser(user);
+        const user = window.authManager.getCurrentUser();
+        const hotels = await window.hotelManager.getHotelsByUser(user);
 
         const grid = document.getElementById('hotelGrid');
-        grid.innerHTML = hotels.map(hotel => `
+        
+        let hotelCards = hotels.map(hotel => `
             <div class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer" 
-                 onclick="hotelManager.selectHotel(${hotel.id})">
+                 onclick="window.hotelApp.selectHotel(${hotel.id})">
                 <img src="${hotel.image}" alt="${hotel.name}" class="w-full h-48 object-cover">
                 <div class="p-6">
                     <h3 class="text-xl font-bold text-gray-900 mb-2">${hotel.name}</h3>
                     <p class="text-gray-600 mb-4">${hotel.location}</p>
                     <div class="flex items-center justify-between">
                         <span class="text-sm text-gray-500">${hotel.totalRooms} habitaciones</span>
-                        <button class="bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
-                            Seleccionar
-                        </button>
+                        <div class="flex space-x-2">
+                            <button class="bg-primary text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
+                                Seleccionar
+                            </button>
+                            ${user.role === 'admin' ? `
+                                <button onclick="event.stopPropagation(); window.hotelApp.editHotel(${hotel.id})" 
+                                        class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            ` : ''}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -173,9 +219,9 @@ class HotelManagementSystem {
 
         // Agregar botón Crear hotel para usuarios administrativos
         if (user.role === 'admin') {
-            grid.innerHTML += `
+            hotelCards += `
                 <div class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border-2 border-dashed border-gray-300" 
-                     onclick="hotelManager.showCreateHotelModal()">
+                     onclick="window.hotelApp.showCreateHotelModal()">
                     <div class="p-6 h-full flex flex-col items-center justify-center text-center">
                         <i class="fas fa-plus text-4xl text-gray-400 mb-4"></i>
                         <h3 class="text-xl font-bold text-gray-900 mb-2">Crear Nuevo Hotel</h3>
@@ -184,28 +230,161 @@ class HotelManagementSystem {
                 </div>
             `;
         }
+        
+        grid.innerHTML = hotelCards;
     }
 
     async selectHotel(hotelId) {
-        const hotel = await hotelDB.get('hotels', hotelId);
+        const hotel = await window.hotelDB.get('hotels', parseInt(hotelId));
         if (!hotel) {
             this.showAlert('Hotel no encontrado', 'error');
             return;
         }
 
         this.selectedHotel = hotel;
-        hotelManager.setCurrentHotel(hotel);
-        document.getElementById('selectedHotelName').textContent = hotel.name;
+        window.hotelManager.setCurrentHotel(hotel);
+        document.getElementById('selectedHotelName').textContent = hotel.name || 'Hotel';
         
         this.hideHotelSelection();
         this.showMainApp();
     }
 
+    async editHotel(hotelId) {
+        const hotel = await window.hotelDB.get('hotels', parseInt(hotelId));
+        if (!hotel) {
+            this.showAlert('Hotel no encontrado', 'error');
+            return;
+        }
+
+        // Rellene el formulario de edición con datos del hotel
+        document.getElementById('editHotelName').value = hotel.name;
+        document.getElementById('editHotelLocation').value = hotel.location;
+        document.getElementById('editHotelAddress').value = hotel.address;
+        document.getElementById('editHotelPhone').value = hotel.phone;
+        document.getElementById('editHotelEmail').value = hotel.email;
+        document.getElementById('editHotelImage').value = hotel.image || '';
+        document.getElementById('editHotelRooms').value = hotel.totalRooms;
+        document.getElementById('editHotelId').value = hotel.id;
+
+        document.getElementById('editHotelModal').classList.remove('hidden');
+        document.getElementById('editHotelModal').classList.add('flex');
+    }
+
+    showCreateHotelModal() {
+        document.getElementById('createHotelModal').classList.remove('hidden');
+        document.getElementById('createHotelModal').classList.add('flex');
+    }
+
+    closeCreateHotelModal() {
+        document.getElementById('createHotelModal').classList.add('hidden');
+        document.getElementById('createHotelModal').classList.remove('flex');
+        document.getElementById('createHotelForm').reset();
+    }
+
+    closeEditHotelModal() {
+        document.getElementById('editHotelModal').classList.add('hidden');
+        document.getElementById('editHotelModal').classList.remove('flex');
+        document.getElementById('editHotelForm').reset();
+    }
+
+    async handleCreateHotel() {
+        const formData = new FormData(document.getElementById('createHotelForm'));
+        const hotelData = Object.fromEntries(formData);
+
+        const result = await window.hotelManager.createHotel(hotelData);
+        if (result.success) {
+            this.showAlert('Hotel creado exitosamente', 'success');
+            this.loadHotels();
+            this.closeCreateHotelModal();
+        } else {
+            this.showAlert(result.message, 'error');
+        }
+    }
+
+    async handleEditHotel() {
+        const formData = new FormData(document.getElementById('editHotelForm'));
+        const hotelData = Object.fromEntries(formData);
+        const hotelId = parseInt(hotelData.id);
+        delete hotelData.id;
+
+        const result = await window.hotelManager.updateHotel(hotelId, hotelData);
+        if (result.success) {
+            this.showAlert('Hotel actualizado exitosamente', 'success');
+            this.loadHotels();
+            this.closeEditHotelModal();
+        } else {
+            this.showAlert(result.message, 'error');
+        }
+    }
+
+    async handleDeleteHotel(hotelId) {
+        if (!confirm('¿Estás seguro de que deseas eliminar este hotel? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        const result = await window.hotelManager.deleteHotel(parseInt(hotelId));
+        if (result.success) {
+            this.showAlert('Hotel eliminado exitosamente', 'success');
+            this.loadHotels();
+        } else {
+            this.showAlert(result.message, 'error');
+        }
+    }
+
     showBackToHotels() {
-        const user = authManager.getCurrentUser();
+        const user = window.authManager.getCurrentUser();
         if (user.role === 'admin') {
-            document.getElementById('mainApp').classList.add('hidden');
             this.showHotelSelection();
+        }
+    }
+
+    showNewReservationModal() {
+        this.loadAvailableRooms();
+        document.getElementById('newReservationModal').classList.remove('hidden');
+        document.getElementById('newReservationModal').classList.add('flex');
+    }
+
+    async loadAvailableRooms() {
+        const currentHotel = window.hotelManager.getCurrentHotel();
+        if (!currentHotel) return;
+
+        const rooms = await window.hotelDB.getByIndex('rooms', 'hotelId', currentHotel.id);
+        const availableRoomsSelect = document.getElementById('availableRooms');
+        
+        if (availableRoomsSelect) {
+            availableRoomsSelect.innerHTML = '<option value="">Seleccionar habitación</option>' +
+                rooms.filter(room => room.status === 'available')
+                     .map(room => `<option value="${room.id}">Habitación ${room.number} - ${room.type} ($${room.price})</option>`)
+                     .join('');
+        }
+    }
+
+    async handleCreateReservation() {
+        const formData = new FormData(document.getElementById('newReservationForm'));
+        const reservationData = Object.fromEntries(formData);
+        
+        // Agregar hotel actual
+        const currentHotel = window.hotelManager.getCurrentHotel();
+        reservationData.hotelId = currentHotel.id;
+        
+        // Calcular la cantidad total
+        const room = await window.hotelDB.get('rooms', parseInt(reservationData.roomId));
+        const checkIn = new Date(reservationData.checkIn);
+        const checkOut = new Date(reservationData.checkOut);
+        const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+        reservationData.totalAmount = nights * room.price;
+        reservationData.roomType = room.type;
+
+        const result = await window.reservationManager.createReservation(reservationData);
+        if (result.success) {
+            this.showAlert('Reserva creada exitosamente', 'success');
+            this.refreshCalendars();
+            this.loadRooms();
+            this.updateDashboardStats();
+            document.getElementById('newReservationModal').classList.add('hidden');
+            document.getElementById('newReservationForm').reset();
+        } else {
+            this.showAlert(result.message, 'error');
         }
     }
 
@@ -249,6 +428,9 @@ class HotelManagementSystem {
                 break;
             case 'reports':
                 this.loadReportsView();
+                break;
+            case 'users':
+                this.loadUsersView();
                 break;
         }
     }
@@ -311,83 +493,28 @@ class HotelManagementSystem {
     }
 
     async loadCalendarEvents() {
-        const currentHotel = hotelManager.getCurrentHotel();
+        const currentHotel = window.hotelManager.getCurrentHotel();
         if (!currentHotel) return [];
 
-        const reservations = await reservationManager.getReservationsByHotel(currentHotel.id);
-        const rooms = await roomManager.getRoomsByHotel(currentHotel.id);
+        const reservations = await window.hotelDB.getByIndex('reservations', 'hotelId', currentHotel.id);
+        const rooms = await window.hotelDB.getByIndex('rooms', 'hotelId', currentHotel.id);
 
         return reservations.map(reservation => {
             const room = rooms.find(r => r.id === reservation.roomId);
-            return reservationManager.formatReservationForCalendar(reservation, room);
+            return window.reservationManager.formatReservationForCalendar(reservation, room);
         });
     }
 
     async loadRoomResources() {
-        const currentHotel = hotelManager.getCurrentHotel();
+        const currentHotel = window.hotelManager.getCurrentHotel();
         if (!currentHotel) return [];
 
-        const rooms = await roomManager.getRoomsByHotel(currentHotel.id);
+        const rooms = await window.hotelDB.getByIndex('rooms', 'hotelId', currentHotel.id);
         return rooms.map(room => ({
             id: room.id,
             title: `Hab. ${room.number}`,
             extendedProps: { room }
         }));
-    }
-
-    generateMockReservations() {
-        const colors = {
-            'paid': '#16a34a',      // Verde por pagado
-            'pending': '#ea580c',   // Naranja para pendiente
-            'unpaid': '#dc2626'     // Rojo para no pagar
-        };
-
-        const mockReservations = [
-            {
-                id: '1',
-                title: 'Juan Pérez - Hab. 101',
-                start: '2024-12-20T14:00:00',
-                end: '2024-12-22T12:00:00',
-                backgroundColor: colors.paid,
-                extendedProps: {
-                    guest: 'Juan Pérez',
-                    room: '101',
-                    status: 'paid',
-                    amount: 250,
-                    phone: '+57 300 123 4567'
-                }
-            },
-            {
-                id: '2',
-                title: 'María García - Hab. 205',
-                start: '2024-12-21T15:00:00',
-                end: '2024-12-23T11:00:00',
-                backgroundColor: colors.pending,
-                extendedProps: {
-                    guest: 'María García',
-                    room: '205',
-                    status: 'pending',
-                    amount: 320,
-                    phone: '+57 301 987 6543'
-                }
-            },
-            {
-                id: '3',
-                title: 'Carlos Rodríguez - Hab. 301',
-                start: '2024-12-22T16:00:00',
-                end: '2024-12-25T10:00:00',
-                backgroundColor: colors.unpaid,
-                extendedProps: {
-                    guest: 'Carlos Rodríguez',
-                    room: '301',
-                    status: 'unpaid',
-                    amount: 480,
-                    phone: '+57 302 456 7890'
-                }
-            }
-        ];
-
-        return mockReservations;
     }
 
     async handleEventClick(info) {
@@ -458,18 +585,18 @@ class HotelManagementSystem {
                 </div>
                 <div class="mt-6 flex space-x-2">
                     ${reservation.reservationStatus === 'confirmed' ? `
-                        <button onclick="hotelManager.checkIn(${reservation.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                        <button onclick="window.hotelApp.checkIn(${reservation.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                             <i class="fas fa-sign-in-alt mr-2"></i>Check-in
                         </button>
                     ` : ''}
                     ${reservation.reservationStatus === 'checked-in' && reservation.paymentStatus === 'paid' ? `
-                        <button onclick="hotelManager.checkOut(${reservation.id})" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        <button onclick="window.hotelApp.checkOut(${reservation.id})" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
                             <i class="fas fa-sign-out-alt mr-2"></i>Check-out
                         </button>
                     ` : ''}
                     ${reservation.paymentStatus !== 'paid' ? `
                     <div class="mt-6">
-                        <button onclick="hotelManager.processPayment(${reservation.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                        <button onclick="window.hotelApp.processPayment(${reservation.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                             <i class="fas fa-credit-card mr-2"></i>Registrar Pago
                         </button>
                     </div>
@@ -483,10 +610,12 @@ class HotelManagementSystem {
     }
 
     async checkIn(reservationId) {
-        const result = await reservationManager.checkIn(reservationId);
+        const result = await window.reservationManager.checkIn(reservationId);
         if (result.success) {
             this.showAlert('Check-in realizado exitosamente', 'success');
             this.refreshCalendars();
+            this.loadRooms();
+            this.updateDashboardStats();
             this.closeReservationModal();
         } else {
             this.showAlert(result.message, 'error');
@@ -494,10 +623,12 @@ class HotelManagementSystem {
     }
 
     async checkOut(reservationId) {
-        const result = await reservationManager.checkOut(reservationId);
+        const result = await window.reservationManager.checkOut(reservationId);
         if (result.success) {
             this.showAlert('Check-out realizado exitosamente', 'success');
             this.refreshCalendars();
+            this.loadRooms();
+            this.updateDashboardStats();
             this.closeReservationModal();
         } else {
             this.showAlert(result.message, 'error');
@@ -508,7 +639,7 @@ class HotelManagementSystem {
         // Mostrar modal de pago
         const amount = prompt('Ingrese el monto del pago:');
         if (amount && !isNaN(amount)) {
-            const result = await reservationManager.processPayment(reservationId, {
+            const result = await window.reservationManager.processPayment(reservationId, {
                 amount: parseFloat(amount),
                 method: 'cash'
             });
@@ -516,6 +647,7 @@ class HotelManagementSystem {
             if (result.success) {
                 this.showAlert('Pago procesado exitosamente', 'success');
                 this.refreshCalendars();
+                this.updateDashboardStats();
                 this.closeReservationModal();
             } else {
                 this.showAlert(result.message, 'error');
@@ -540,7 +672,7 @@ class HotelManagementSystem {
         const newEnd = info.event.end.toISOString();
         
         // Actualizar fechas de reserva
-        reservationManager.updateReservation(reservation.id, {
+        window.reservationManager.updateReservation(reservation.id, {
             checkIn: newStart,
             checkOut: newEnd
         });
@@ -551,24 +683,24 @@ class HotelManagementSystem {
         const newEnd = info.event.end.toISOString();
         
         // Extender la reserva
-        reservationManager.extendReservation(reservation.id, newEnd);
+        window.reservationManager.extendReservation(reservation.id, newEnd);
     }
 
     async loadRooms() {
-        const currentHotel = hotelManager.getCurrentHotel();
+        const currentHotel = window.hotelManager.getCurrentHotel();
         if (!currentHotel) return;
 
-        const rooms = await roomManager.getRoomsByHotel(currentHotel.id);
+        const rooms = await window.hotelDB.getByIndex('rooms', 'hotelId', currentHotel.id);
         const roomsGrid = document.getElementById('roomsGrid');
         if (!roomsGrid) return;
 
         roomsGrid.innerHTML = rooms.map(room => `
             <div class="bg-white rounded-lg border-2 border-gray-200 hover:border-blue-300 transition-colors cursor-pointer p-4 relative room-card"
                  data-room-id="${room.id}">
-                <div class="absolute top-2 right-2 w-3 h-3 ${roomManager.getRoomStateInfo(room.status).color} rounded-full"></div>
+                <div class="absolute top-2 right-2 w-3 h-3 ${window.roomManager.getRoomStateInfo(room.status).color} rounded-full" title="${window.roomManager.getRoomStateInfo(room.status).text}"></div>
                 <div class="text-center">
                     <h3 class="font-bold text-gray-900 text-lg mb-1">${room.number}</h3>
-                    <p class="text-sm text-gray-600 mb-2">${roomManager.getRoomStateInfo(room.status).text}</p>
+                    <p class="text-sm text-gray-600 mb-2">${window.roomManager.getRoomStateInfo(room.status).text}</p>
                     <p class="text-xs text-gray-500">${room.type}</p>
                 </div>
             </div>
@@ -577,7 +709,7 @@ class HotelManagementSystem {
 
     async handleRoomClick(roomElement) {
         const roomId = parseInt(roomElement.dataset.roomId);
-        const room = await hotelDB.get('rooms', roomId);
+        const room = await window.hotelDB.get('rooms', roomId);
         
         if (!room) return;
 
@@ -587,7 +719,10 @@ class HotelManagementSystem {
 
     showRoomModal(room) {
         const modal = document.getElementById('roomModal');
-        if (!modal) return;
+        if (!modal) {
+            console.error('Room modal not found');
+            return;
+        }
 
         document.getElementById('roomModalTitle').textContent = `Habitación ${room.number}`;
         document.getElementById('roomModalContent').innerHTML = `
@@ -604,32 +739,33 @@ class HotelManagementSystem {
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Estado Actual</label>
-                        <p class="text-gray-900">${roomManager.getRoomStateInfo(room.status).text}</p>
-                    </div>
-                    <div>
                         <label class="block text-sm font-medium text-gray-700">Capacidad</label>
                         <p class="text-gray-900">${room.capacity} personas</p>
                     </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Precio por noche</label>
-                    <p class="text-gray-900">$${room.price}</p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Precio por noche</label>
+                        <p class="text-gray-900">$${room.price}</p>
+                    </div>
                 </div>
                 <div class="mt-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Cambiar Estado</label>
-                    <div class="flex space-x-2">
-                        <button onclick="hotelManager.updateRoomStatus(${room.id}, 'available')" 
-                                class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">
-                            Disponible
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Cambiar Estado de Habitación</label>
+                    <p class="text-sm text-gray-500 mb-3">Estado actual: <span class="font-medium">${window.roomManager.getRoomStateInfo(room.status).text}</span></p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="window.hotelApp.updateRoomStatus(${room.id}, 'available')" 
+                                class="bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 flex items-center justify-center">
+                            <i class="fas fa-check mr-1"></i>Marcar Limpia
                         </button>
-                        <button onclick="hotelManager.updateRoomStatus(${room.id}, 'dirty')" 
-                                class="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700">
-                            Sucia
+                        <button onclick="window.hotelApp.updateRoomStatus(${room.id}, 'dirty')" 
+                                class="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700 flex items-center justify-center">
+                            <i class="fas fa-times mr-1"></i>Marcar Sucia
                         </button>
-                        <button onclick="hotelManager.updateRoomStatus(${room.id}, 'maintenance')" 
-                                class="bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700">
-                            Mantenimiento
+                        <button onclick="window.hotelApp.updateRoomStatus(${room.id}, 'occupied')" 
+                                class="bg-gray-600 text-white px-3 py-2 rounded text-sm hover:bg-gray-700 flex items-center justify-center">
+                            <i class="fas fa-user mr-1"></i>Ocupada
+                        </button>
+                        <button onclick="window.hotelApp.updateRoomStatus(${room.id}, 'maintenance')" 
+                                class="bg-orange-600 text-white px-3 py-2 rounded text-sm hover:bg-orange-700 flex items-center justify-center">
+                            <i class="fas fa-tools mr-1"></i>Mantenimiento
                         </button>
                     </div>
                 </div>
@@ -641,10 +777,11 @@ class HotelManagementSystem {
     }
 
     async updateRoomStatus(roomId, newStatus) {
-        const result = await roomManager.updateRoomStatus(roomId, newStatus);
+        const result = await window.roomManager.updateRoomStatus(parseInt(roomId), newStatus);
         if (result.success) {
             this.showAlert('Estado de habitación actualizado', 'success');
             this.loadRooms();
+            this.updateDashboardStats();
             this.closeRoomModal();
         } else {
             this.showAlert(result.message, 'error');
@@ -660,10 +797,10 @@ class HotelManagementSystem {
     }
 
     async updateDashboardStats() {
-        const currentHotel = hotelManager.getCurrentHotel();
+        const currentHotel = window.hotelManager.getCurrentHotel();
         if (!currentHotel) return;
 
-        const stats = await hotelManager.getHotelStats(currentHotel.id);
+        const stats = await window.hotelManager.getHotelStats(currentHotel.id);
         if (!stats) return;
 
         // Actualizar tarjetas KPI
@@ -716,18 +853,18 @@ class HotelManagementSystem {
     }
 
     async loadNotifications() {
-        const user = authManager.getCurrentUser();
+        const user = window.authManager.getCurrentUser();
         if (!user) return;
 
-        await notificationManager.getNotifications(user.id);
+        await window.notificationManager.getNotifications(user.id);
         this.updateNotificationBadge();
     }
 
     updateNotificationBadge() {
         const badge = document.querySelector('.notification-badge');
         if (badge) {
-            badge.textContent = notificationManager.unreadCount;
-            badge.style.display = notificationManager.unreadCount > 0 ? 'flex' : 'none';
+            badge.textContent = window.notificationManager.unreadCount;
+            badge.style.display = window.notificationManager.unreadCount > 0 ? 'flex' : 'none';
         }
     }
 
@@ -753,7 +890,7 @@ class HotelManagementSystem {
     }
 
     async loadReportsView() {
-        const currentHotel = hotelManager.getCurrentHotel();
+        const currentHotel = window.hotelManager.getCurrentHotel();
         if (!currentHotel) return;
 
         // Cargar informes predeterminados
@@ -761,19 +898,64 @@ class HotelManagementSystem {
         const startDate = new Date();
         startDate.setMonth(startDate.getMonth() - 1);
 
-        const occupancyReport = await reportManager.generateOccupancyReport(
+        const occupancyReport = await window.reportManager.generateOccupancyReport(
             currentHotel.id, 
             startDate.toISOString(), 
             endDate.toISOString()
         );
 
-        const revenueReport = await reportManager.generateRevenueReport(
+        const revenueReport = await window.reportManager.generateRevenueReport(
             currentHotel.id, 
             startDate.toISOString(), 
             endDate.toISOString()
         );
 
         this.displayReports(occupancyReport, revenueReport);
+    }
+
+    async loadUsersView() {
+        const user = window.authManager.getCurrentUser();
+        if (user.role !== 'admin') return;
+
+        const users = await window.hotelDB.getAll('users');
+        const usersContainer = document.getElementById('usersContainer');
+        
+        if (usersContainer) {
+            usersContainer.innerHTML = `
+                <div class="mb-4">
+                    <button onclick="document.getElementById('registrationModal').classList.remove('hidden')" 
+                            class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        <i class="fas fa-user-plus mr-2"></i>Crear Usuario
+                    </button>
+                </div>
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creado</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${users.map(u => `
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${u.name}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${u.email}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${u.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">
+                                            ${u.role}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(u.createdAt).toLocaleDateString()}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
     }
 
     displayReports(occupancyReport, revenueReport) {
@@ -858,55 +1040,20 @@ class HotelManagementSystem {
     }
 
     logout() {
-        authManager.logout();
+        window.authManager.logout();
     }
 }
 
 // Funciones globales
 function closeReservationModal() {
-    hotelManager.closeReservationModal();
+    window.hotelApp.closeReservationModal();
 }
 
 function logout() {
     if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
-        hotelManager.logout();
+        window.hotelApp.logout();
     }
 }
-
-// Extender el sistema de gestión hotelera con métodos adicionales
-HotelManagementSystem.prototype.selectHotel = function(hotelId) {
-    this.selectHotel(hotelId);
-};
-
-HotelManagementSystem.prototype.showCreateHotelModal = function() {
-    const modal = document.getElementById('createHotelModal');
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-    }
-};
-
-HotelManagementSystem.prototype.handleCreateHotel = async function() {
-    const formData = new FormData(document.getElementById('createHotelForm'));
-    const hotelData = Object.fromEntries(formData);
-
-    const result = await hotelManager.createHotel(hotelData);
-    if (result.success) {
-        this.showAlert('Hotel creado exitosamente', 'success');
-        this.loadHotels();
-        this.closeCreateHotelModal();
-    } else {
-        this.showAlert(result.message, 'error');
-    }
-};
-
-HotelManagementSystem.prototype.closeCreateHotelModal = function() {
-    const modal = document.getElementById('createHotelModal');
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-};
 
 // Estilos CSS para navegación y componentes
 const additionalStyles = `
@@ -1026,5 +1173,10 @@ const additionalStyles = `
 
 document.head.insertAdjacentHTML('beforeend', additionalStyles);
 
-// Inicializar la aplicación
-const hotelManager = new HotelManagementSystem();
+// Inicializar la aplicación cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM cargado, inicializando aplicación...');
+    window.hotelApp = new HotelManagementSystem();
+    await window.hotelApp.initializeDatabase();
+    console.log('Aplicación inicializada completamente');
+});

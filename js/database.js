@@ -1,263 +1,297 @@
-// Sistema de gestión de bases de datos utilizando indexeddb
-class HotelDatabase {
+// Sistema de gestión de bases de datos
+class DatabaseManager {
     constructor() {
-        this.dbName = 'HotelManagementDB';
-        this.version = 1;
         this.db = null;
+        this.dbName = 'HotelManagementDB';
+        this.version = 4;
     }
 
     async init() {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.version);
 
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => {
-                this.db = request.result;
-                resolve(this.db);
-            };
-
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
 
-                // Mesa de usuarios
+                // Tienda de usuarios
                 if (!db.objectStoreNames.contains('users')) {
-                    const userStore = db.createObjectStore('users', { keyPath: 'id', autoIncrement: true });
-                    userStore.createIndex('email', 'email', { unique: true });
-                    userStore.createIndex('role', 'role', { unique: false });
+                    const store = db.createObjectStore('users', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('email', 'email', { unique: true });
                 }
 
-                // Mesa de hoteles
+                // Tienda de hoteles  
                 if (!db.objectStoreNames.contains('hotels')) {
-                    const hotelStore = db.createObjectStore('hotels', { keyPath: 'id', autoIncrement: true });
-                    hotelStore.createIndex('name', 'name', { unique: false });
+                    const store = db.createObjectStore('hotels', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('name', 'name');
+                    store.createIndex('location', 'location');
                 }
 
-                // Mesa de habitaciones
+                // Tienda de habitaciones
                 if (!db.objectStoreNames.contains('rooms')) {
-                    const roomStore = db.createObjectStore('rooms', { keyPath: 'id', autoIncrement: true });
-                    roomStore.createIndex('hotelId', 'hotelId', { unique: false });
-                    roomStore.createIndex('number', 'number', { unique: false });
+                    const store = db.createObjectStore('rooms', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('hotelId', 'hotelId');
+                    store.createIndex('number', 'number');
                 }
 
-                // Tabla de reservas
+                // Tienda de reservas
                 if (!db.objectStoreNames.contains('reservations')) {
-                    const reservationStore = db.createObjectStore('reservations', { keyPath: 'id', autoIncrement: true });
-                    reservationStore.createIndex('hotelId', 'hotelId', { unique: false });
-                    reservationStore.createIndex('roomId', 'roomId', { unique: false });
-                    reservationStore.createIndex('checkIn', 'checkIn', { unique: false });
-                    reservationStore.createIndex('status', 'status', { unique: false });
+                    const store = db.createObjectStore('reservations', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('hotelId', 'hotelId');
+                    store.createIndex('roomId', 'roomId');
+                    store.createIndex('guestEmail', 'guestEmail');
                 }
 
-                // Tabla de pagos
+                // Tienda de pagos
                 if (!db.objectStoreNames.contains('payments')) {
-                    const paymentStore = db.createObjectStore('payments', { keyPath: 'id', autoIncrement: true });
-                    paymentStore.createIndex('reservationId', 'reservationId', { unique: false });
-                    paymentStore.createIndex('date', 'date', { unique: false });
+                    const store = db.createObjectStore('payments', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('reservationId', 'reservationId');
                 }
 
-                // Tabla de configuración
-                if (!db.objectStoreNames.contains('settings')) {
-                    db.createObjectStore('settings', { keyPath: 'key' });
-                }
-
-                // Tabla de notificaciones
+                // Tienda de notificaciones
                 if (!db.objectStoreNames.contains('notifications')) {
-                    const notificationStore = db.createObjectStore('notifications', { keyPath: 'id', autoIncrement: true });
-                    notificationStore.createIndex('userId', 'userId', { unique: false });
-                    notificationStore.createIndex('read', 'read', { unique: false });
+                    const store = db.createObjectStore('notifications', { keyPath: 'id', autoIncrement: true });
+                    store.createIndex('userId', 'userId');
                 }
+            };
+
+            request.onsuccess = (event) => {
+                this.db = event.target.result;
+                console.log('Base de datos inicializada correctamente');
+                resolve(this.db);
+            };
+
+            request.onerror = (event) => {
+                console.error('Error inicializando base de datos:', event.target.error);
+                reject(event.target.error);
             };
         });
     }
 
     async add(storeName, data) {
-        const transaction = this.db.transaction([storeName], 'readwrite');
-        const store = transaction.objectStore(storeName);
-        return store.add(data);
-    }
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.add(data);
 
-    async update(storeName, data) {
-        const transaction = this.db.transaction([storeName], 'readwrite');
-        const store = transaction.objectStore(storeName);
-        return store.put(data);
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+        });
     }
 
     async get(storeName, id) {
-        const transaction = this.db.transaction([storeName], 'readonly');
-        const store = transaction.objectStore(storeName);
-        return store.get(id);
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const request = store.get(id);
+
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+        });
     }
 
     async getAll(storeName) {
-        const transaction = this.db.transaction([storeName], 'readonly');
-        const store = transaction.objectStore(storeName);
-        return store.getAll();
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+        });
     }
 
     async getByIndex(storeName, indexName, value) {
-        const transaction = this.db.transaction([storeName], 'readonly');
-        const store = transaction.objectStore(storeName);
-        const index = store.index(indexName);
-        return index.getAll(value);
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([storeName], 'readonly');
+            const store = transaction.objectStore(storeName);
+            const index = store.index(indexName);
+            const request = index.getAll(value);
+
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+        });
+    }
+
+    async update(storeName, data) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.put(data);
+
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+        });
     }
 
     async delete(storeName, id) {
-        const transaction = this.db.transaction([storeName], 'readwrite');
-        const store = transaction.objectStore(storeName);
-        return store.delete(id);
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction([storeName], 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = store.delete(id);
+
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+
+            request.onerror = () => {
+                reject(request.error);
+            };
+        });
+    }
+
+    async getUserByEmail(email) {
+        try {
+            const users = await this.getByIndex('users', 'email', email);
+            return users.length > 0 ? users[0] : null;
+        } catch (error) {
+            console.error('Error getting user by email:', error);
+            return null;
+        }
+    }
+
+    async createUser(userData) {
+        try {
+            return await this.add('users', userData);
+        } catch (error) {
+            console.error('Error creating user:', error);
+            throw error;
+        }
     }
 
     async initializeDefaultData() {
         try {
-            // Compruebe si ya existe datos
-            const users = await this.getAll('users');
-            if (users.length > 0) return;
+            console.log('Inicializando datos por defecto...');
+            
+            // Compruebe si los usuarios ya existen
+            const existingUsers = await this.getAll('users');
+            if (existingUsers.length > 0) {
+                console.log('Datos ya existen, saltando inicialización');
+                return;
+            }
 
-            // Crear usuario administrador predeterminado
-            await this.add('users', {
-                email: 'admin@hotel.com',
-                password: 'admin123',
-                name: 'Administrador Principal',
-                role: 'admin',
-                createdAt: new Date().toISOString(),
-                active: true
-            });
+            // Crear usuarios predeterminados
+            const defaultUsers = [
+                {
+                    name: 'Administrador',
+                    email: 'admin@hotel.com',
+                    password: 'admin123',
+                    role: 'admin',
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    name: 'Staff Hotel Plaza',
+                    email: 'staff@hotel.com',
+                    password: 'staff123',
+                    role: 'staff',
+                    hotelId: 1,
+                    createdAt: new Date().toISOString()
+                }
+            ];
+
+            for (const user of defaultUsers) {
+                await this.add('users', user);
+                console.log(`Usuario creado: ${user.email}`);
+            }
 
             // Crear hoteles predeterminados
-            const hotel1 = await this.add('hotels', {
-                name: 'Hotel Plaza Central',
-                location: 'Centro Histórico',
-                address: 'Calle 10 #15-20, Centro',
-                phone: '+57 1 234 5678',
-                email: 'info@plazacentral.com',
-                image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?auto=compress&cs=tinysrgb&w=400',
-                totalRooms: 45,
-                createdAt: new Date().toISOString(),
-                active: true
-            });
+            const defaultHotels = [
+                {
+                    name: 'Hotel Plaza Central',
+                    location: 'Centro Histórico',
+                    address: 'Calle 10 #15-20, Centro',
+                    phone: '+57 1 234 5678',
+                    email: 'info@plazacentral.com',
+                    image: 'https://images.pexels.com/photos/258154/pexels-photo-258154.jpeg?auto=compress&cs=tinysrgb&w=800',
+                    totalRooms: 12,
+                    active: true,
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    name: 'Hotel Marina Bay',
+                    location: 'Zona Rosa',
+                    address: 'Carrera 15 #85-40, Zona Rosa',
+                    phone: '+57 1 345 6789',
+                    email: 'info@marinabay.com',
+                    image: 'https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=800',
+                    totalRooms: 8,
+                    active: true,
+                    createdAt: new Date().toISOString()
+                }
+            ];
 
-            const hotel2 = await this.add('hotels', {
-                name: 'Hotel Marina Bay',
-                location: 'Zona Rosa',
-                address: 'Carrera 15 #85-32, Zona Rosa',
-                phone: '+57 1 345 6789',
-                email: 'reservas@marinabay.com',
-                image: 'https://images.pexels.com/photos/271624/pexels-photo-271624.jpeg?auto=compress&cs=tinysrgb&w=400',
-                totalRooms: 32,
-                createdAt: new Date().toISOString(),
-                active: true
-            });
+            for (const hotel of defaultHotels) {
+                await this.add('hotels', hotel);
+                console.log(`Hotel creado: ${hotel.name}`);
+            }
 
-            const hotel3 = await this.add('hotels', {
-                name: 'Hotel Mountain View',
-                location: 'Zona Norte',
-                address: 'Avenida 19 #120-45, Zona Norte',
-                phone: '+57 1 456 7890',
-                email: 'contacto@mountainview.com',
-                image: 'https://images.pexels.com/photos/2506988/pexels-photo-2506988.jpeg?auto=compress&cs=tinysrgb&w=400',
-                totalRooms: 28,
-                createdAt: new Date().toISOString(),
-                active: true
-            });
+            // Crear habitaciones predeterminadas para Hotel Plaza Central (ID: 1)
+            const plazaRooms = [];
+            for (let i = 1; i <= 12; i++) {
+                const roomNumber = 100 + i;
+                plazaRooms.push({
+                    hotelId: 1,
+                    number: roomNumber.toString(),
+                    type: i <= 6 ? 'Standard' : i <= 10 ? 'Superior' : 'Suite',
+                    capacity: i <= 8 ? 2 : i <= 10 ? 3 : 4,
+                    price: i <= 6 ? 150000 : i <= 10 ? 200000 : 300000,
+                    status: i <= 8 ? 'available' : i <= 10 ? 'occupied' : 'dirty',
+                    amenities: ['WiFi', 'TV', 'Aire Acondicionado'],
+                    createdAt: new Date().toISOString()
+                });
+            }
 
-            // Crear usuarios de personal para cada hotel
-            await this.add('users', {
-                email: 'staff1@hotel.com',
-                password: 'staff123',
-                name: 'Personal Plaza Central',
-                role: 'staff',
-                hotelId: 1,
-                createdAt: new Date().toISOString(),
-                active: true
-            });
+            // Crear habitaciones predeterminadas para Hotel Marina Bay (ID: 2)
+            const marinaRooms = [];
+            for (let i = 1; i <= 8; i++) {
+                const roomNumber = 200 + i;
+                marinaRooms.push({
+                    hotelId: 2,
+                    number: roomNumber.toString(),
+                    type: i <= 4 ? 'Standard' : i <= 6 ? 'Superior' : 'Suite',
+                    capacity: i <= 5 ? 2 : 3,
+                    price: i <= 4 ? 180000 : i <= 6 ? 250000 : 350000,
+                    status: i <= 5 ? 'available' : i <= 6 ? 'occupied' : 'maintenance',
+                    amenities: ['WiFi', 'TV', 'Aire Acondicionado', 'Minibar'],
+                    createdAt: new Date().toISOString()
+                });
+            }
 
-            await this.add('users', {
-                email: 'staff2@hotel.com',
-                password: 'staff123',
-                name: 'Personal Marina Bay',
-                role: 'staff',
-                hotelId: 2,
-                createdAt: new Date().toISOString(),
-                active: true
-            });
+            // Agregar todas las habitaciones
+            for (const room of [...plazaRooms, ...marinaRooms]) {
+                await this.add('rooms', room);
+            }
 
-            // Crear habitaciones para cada hotel
-            await this.createRoomsForHotel(1, 45, 'Plaza Central');
-            await this.createRoomsForHotel(2, 32, 'Marina Bay');
-            await this.createRoomsForHotel(3, 28, 'Mountain View');
-
-            // Crear reservas de muestra
-            await this.createSampleReservations();
-
-            console.log('Default data initialized successfully');
+            console.log('Datos por defecto inicializados correctamente');
         } catch (error) {
-            console.error('Error initializing default data:', error);
-        }
-    }
-
-    async createRoomsForHotel(hotelId, totalRooms, hotelName) {
-        const roomTypes = ['Standard', 'Superior', 'Deluxe', 'Suite'];
-        const roomStates = ['available', 'occupied', 'dirty', 'maintenance'];
-        
-        for (let i = 1; i <= totalRooms; i++) {
-            const roomNumber = hotelId * 100 + i;
-            const randomType = roomTypes[Math.floor(Math.random() * roomTypes.length)];
-            const randomState = roomStates[Math.floor(Math.random() * roomStates.length)];
-            
-            await this.add('rooms', {
-                hotelId: hotelId,
-                number: roomNumber.toString(),
-                type: randomType,
-                status: randomState,
-                capacity: randomType === 'Suite' ? 4 : randomType === 'Deluxe' ? 3 : 2,
-                price: randomType === 'Suite' ? 200 : randomType === 'Deluxe' ? 150 : randomType === 'Superior' ? 100 : 80,
-                amenities: ['WiFi', 'TV', 'AC', 'Minibar'],
-                lastCleaned: new Date().toISOString(),
-                createdAt: new Date().toISOString()
-            });
-        }
-    }
-
-    async createSampleReservations() {
-        const guests = [
-            'Juan Pérez', 'María García', 'Carlos Rodríguez', 'Ana Martínez',
-            'Luis López', 'Carmen Sánchez', 'Pedro González', 'Rosa Hernández'
-        ];
-
-        const paymentStatuses = ['paid', 'pending', 'unpaid'];
-        const reservationStatuses = ['confirmed', 'checked-in', 'checked-out', 'cancelled'];
-
-        for (let i = 0; i < 10; i++) {
-            const checkIn = new Date();
-            checkIn.setDate(checkIn.getDate() + Math.floor(Math.random() * 30) - 15);
-            
-            const checkOut = new Date(checkIn);
-            checkOut.setDate(checkOut.getDate() + Math.floor(Math.random() * 7) + 1);
-
-            const randomGuest = guests[Math.floor(Math.random() * guests.length)];
-            const randomPaymentStatus = paymentStatuses[Math.floor(Math.random() * paymentStatuses.length)];
-            const randomReservationStatus = reservationStatuses[Math.floor(Math.random() * reservationStatuses.length)];
-
-            await this.add('reservations', {
-                hotelId: Math.floor(Math.random() * 3) + 1,
-                roomId: Math.floor(Math.random() * 45) + 1,
-                guestName: randomGuest,
-                guestEmail: `${randomGuest.toLowerCase().replace(' ', '.')}@email.com`,
-                guestPhone: `+57 30${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 1000000).toString().padStart(7, '0')}`,
-                numberOfGuests: Math.floor(Math.random() * 4) + 1,
-                checkIn: checkIn.toISOString(),
-                checkOut: checkOut.toISOString(),
-                roomType: 'Standard',
-                totalAmount: Math.floor(Math.random() * 500) + 100,
-                paymentStatus: randomPaymentStatus,
-                reservationStatus: randomReservationStatus,
-                preferences: ['Desayuno incluido'],
-                createdAt: new Date().toISOString(),
-                createdBy: 1
-            });
+            console.error('Error inicializando datos por defecto:', error);
         }
     }
 }
 
-// Inicializar la base de datos
-const hotelDB = new HotelDatabase();
+// Inicializar Global Database Manager
+window.hotelDB = new DatabaseManager();

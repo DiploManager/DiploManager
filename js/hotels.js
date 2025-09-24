@@ -10,10 +10,16 @@ class HotelManager {
                 ...hotelData,
                 createdAt: new Date().toISOString(),
                 active: true,
-                totalRooms: 0
+                totalRooms: parseInt(hotelData.totalRooms) || 0
             };
 
-            const result = await hotelDB.add('hotels', hotel);
+            const result = await window.hotelDB.add('hotels', hotel);
+            
+            // Crear habitaciones para el nuevo hotel
+            if (hotel.totalRooms > 0) {
+                await this.createRoomsForHotel(result, hotel.totalRooms);
+            }
+            
             return { success: true, hotel: { ...hotel, id: result } };
         } catch (error) {
             console.error('Error creating hotel:', error);
@@ -21,15 +27,43 @@ class HotelManager {
         }
     }
 
+    async createRoomsForHotel(hotelId, totalRooms) {
+        try {
+            const roomTypes = ['Standard', 'Superior', 'Deluxe', 'Suite'];
+            const basePrice = 150000;
+            
+            for (let i = 1; i <= totalRooms; i++) {
+                const floor = Math.ceil(i / 10);
+                const roomNumber = (floor * 100) + (i % 10 === 0 ? 10 : i % 10);
+                const typeIndex = Math.floor((i - 1) / Math.ceil(totalRooms / 4));
+                const roomType = roomTypes[Math.min(typeIndex, 3)];
+                
+                const room = {
+                    hotelId: hotelId,
+                    number: roomNumber.toString(),
+                    type: roomType,
+                    capacity: roomType === 'Suite' ? 4 : roomType === 'Deluxe' ? 3 : 2,
+                    price: basePrice + (typeIndex * 50000),
+                    status: 'available',
+                    amenities: ['WiFi', 'TV', 'Aire Acondicionado'],
+                    createdAt: new Date().toISOString()
+                };
+                
+                await window.hotelDB.add('rooms', room);
+            }
+        } catch (error) {
+            console.error('Error creating rooms for hotel:', error);
+        }
+    }
     async updateHotel(hotelId, updates) {
         try {
-            const hotel = await hotelDB.get('hotels', hotelId);
+            const hotel = await window.hotelDB.get('hotels', hotelId);
             if (!hotel) {
                 return { success: false, message: 'Hotel no encontrado' };
             }
 
             const updatedHotel = { ...hotel, ...updates };
-            await hotelDB.update('hotels', updatedHotel);
+            await window.hotelDB.update('hotels', updatedHotel);
 
             return { success: true, hotel: updatedHotel };
         } catch (error) {
@@ -38,12 +72,38 @@ class HotelManager {
         }
     }
 
+    async deleteHotel(hotelId) {
+        try {
+            // Verifique si el hotel tiene reservas activas
+            const reservations = await window.hotelDB.getByIndex('reservations', 'hotelId', hotelId);
+            const activeReservations = reservations.filter(r => 
+                r.reservationStatus === 'confirmed' || r.reservationStatus === 'checked-in'
+            );
+
+            if (activeReservations.length > 0) {
+                return { success: false, message: 'No se puede eliminar hotel con reservas activas' };
+            }
+
+            // Eliminar todas las habitaciones primero
+            const rooms = await window.hotelDB.getByIndex('rooms', 'hotelId', hotelId);
+            for (const room of rooms) {
+                await window.hotelDB.delete('rooms', room.id);
+            }
+
+            // Eliminar hotel
+            await window.hotelDB.delete('hotels', hotelId);
+            return { success: true };
+        } catch (error) {
+            console.error('Error deleting hotel:', error);
+            return { success: false, message: 'Error al eliminar hotel' };
+        }
+    }
     async getHotelsByUser(user) {
         try {
             if (user.role === 'admin') {
-                return await hotelDB.getAll('hotels');
+                return await window.hotelDB.getAll('hotels');
             } else if (user.role === 'staff' && user.hotelId) {
-                const hotel = await hotelDB.get('hotels', user.hotelId);
+                const hotel = await window.hotelDB.get('hotels', user.hotelId);
                 return hotel ? [hotel] : [];
             }
             return [];
@@ -53,10 +113,11 @@ class HotelManager {
         }
     }
 
+
     async getHotelStats(hotelId) {
         try {
-            const rooms = await roomManager.getRoomsByHotel(hotelId);
-            const reservations = await reservationManager.getReservationsByHotel(hotelId);
+            const rooms = await window.hotelDB.getByIndex('rooms', 'hotelId', hotelId);
+            const reservations = await window.hotelDB.getByIndex('reservations', 'hotelId', hotelId);
             
             const today = new Date();
             const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -107,12 +168,12 @@ class HotelManager {
 
     setCurrentHotel(hotel) {
         this.currentHotel = hotel;
-        sessionStorage.setItem('currentHotel', JSON.stringify(hotel));
+        localStorage.setItem('currentHotel', JSON.stringify(hotel));
     }
 
     getCurrentHotel() {
         if (!this.currentHotel) {
-            const hotelData = sessionStorage.getItem('currentHotel');
+            const hotelData = localStorage.getItem('currentHotel');
             if (hotelData) {
                 this.currentHotel = JSON.parse(hotelData);
             }
@@ -122,9 +183,6 @@ class HotelManager {
 
     clearCurrentHotel() {
         this.currentHotel = null;
-        sessionStorage.removeItem('currentHotel');
+        localStorage.removeItem('currentHotel');
     }
 }
-
-// Inicializar el gerente del hotel
-const hotelManager = new HotelManager();
