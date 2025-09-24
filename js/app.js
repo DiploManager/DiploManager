@@ -435,6 +435,25 @@ class HotelManagementSystem {
         }
     }
 
+    showView(viewName) {
+        console.log('Mostrando vista:', viewName);
+        // Ocultar todas las vistas
+        const views = document.querySelectorAll('.view');
+        views.forEach(view => {
+            view.style.display = 'none';
+        });
+
+        // Mostrar la vista solicitada
+        const targetView = document.getElementById(viewName);
+        if (targetView) {
+            targetView.style.display = 'block';
+            this.currentView = viewName;
+            console.log('Vista mostrada:', viewName);
+        } else {
+            console.error('Vista no encontrada:', viewName);
+        }
+    }
+
     initializeCalendars() {
         // Calendario de tablero
         const calendarEl = document.getElementById('calendar');
